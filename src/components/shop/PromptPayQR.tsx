@@ -202,6 +202,19 @@ export function PromptPayQR({
           {phase === "done" && result && !result.ok && (
             <div className="alert alert-warning py-2 small mt-2 mb-0 text-start">
               <XCircle size={14} /> {result.error}
+              {result.code && <span className="text-muted"> ({result.code})</span>}
+              <div className="mt-2 d-flex gap-2">
+                <button type="button" className="btn btn-sm btn-primary" onClick={beginCameraScan}>
+                  ลองใหม่
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={() => setManual(true)}
+                >
+                  ดูรายละเอียด / สแกนเอง
+                </button>
+              </div>
             </div>
           )}
           {err && <div className="alert alert-danger py-2 small mt-2 mb-0 text-start">{err}</div>}

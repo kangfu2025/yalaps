@@ -17,6 +17,10 @@ export interface SlipVerifyResult {
   expectedAmount?: number;
   error?: string;
   code?: string;
+  /** true = ยังไม่ถึงคิวธนาคาร ลองใหม่ได้ */
+  retryable?: boolean;
+  /** คำตอบดิบจาก EasySlip — ใช้ตอนมีปัญหาเท่านั้น */
+  debug?: unknown;
   previous?: {
     created_at: string;
     expected_amount: number;

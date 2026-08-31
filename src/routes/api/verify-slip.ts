@@ -67,6 +67,22 @@ function firstNumber(obj: unknown, paths: string[]): number | null {
 }
 
 /**
+ * หา object ที่เก็บข้อมูลสลิปจริง ๆ
+ *
+ * v2 ตอบเป็น { success, data: { rawSlip: {...} } }  <-- ข้อมูลอยู่ลึกอีกชั้น
+ * v1 ตอบเป็น { status, data: {...} }
+ * เผื่อไว้ทั้งสองแบบและแบบที่ยัดมาที่ root เลย
+ */
+function slipRoot(body: Record<string, unknown>): unknown {
+  const data = body.data as Record<string, unknown> | undefined;
+  if (data && typeof data === "object") {
+    if (data.rawSlip && typeof data.rawSlip === "object") return data.rawSlip;
+    return data;
+  }
+  return body;
+}
+
+/**
  * EasySlip เคยปรับรูปแบบ response ระหว่างเวอร์ชัน จึงอ่านแบบเผื่อไว้หลายทาง
  * ดีกว่าผูกกับ path เดียวแล้ววันหนึ่งพังเงียบ ๆ
  */
@@ -96,11 +112,40 @@ function normalize(data: unknown) {
   };
 }
 
+/** v2: { success:false, error:{ code, message } } · v1: { status:4xx, message:"code" } */
+function errorCode(body: Record<string, unknown>): string | null {
+  const err = body.error;
+  if (err && typeof err === "object") {
+    const code = (err as Record<string, unknown>).code;
+    if (typeof code === "string" && code) return code;
+    const msg = (err as Record<string, unknown>).message;
+    if (typeof msg === "string" && msg) return msg;
+  }
+  if (typeof err === "string" && err) return err;
+  const status = Number(body.status);
+  if (Number.isFinite(status) && status >= 400 && typeof body.message === "string") {
+    return body.message;
+  }
+  if (body.success === false && typeof body.message === "string") return body.message;
+  return null;
+}
+
 const ERROR_TH: Record<string, string> = {
   MISSING_API_KEY: "ยังไม่ได้ตั้งค่า API key ของ EasySlip",
   INVALID_API_KEY: "API key ของ EasySlip ไม่ถูกต้อง",
   QUOTA_EXCEEDED: "โควตาตรวจสลิปของเดือนนี้หมดแล้ว",
   SLIP_NOT_FOUND: "ไม่พบรายการโอนนี้ในระบบธนาคาร — สลิปอาจเป็นของปลอม",
+  SLIP_PENDING: "ธนาคารยังไม่บันทึกรายการนี้ รอสัก 10-30 วินาทีแล้วลองใหม่",
+  slip_pending: "ธนาคารยังไม่บันทึกรายการนี้ รอสัก 10-30 วินาทีแล้วลองใหม่",
+  slip_not_found: "ไม่พบรายการโอนนี้ในระบบธนาคาร — สลิปอาจเป็นของปลอม",
+  qrcode_not_found: "อ่าน QR บนสลิปไม่ได้ ลองสแกนใหม่ให้ชัดขึ้น",
+  VALIDATION_ERROR: "ข้อมูลที่ส่งไปไม่ถูกรูปแบบ",
+  RATE_LIMIT_EXCEEDED: "เรียกถี่เกินไป รอสักครู่แล้วลองใหม่",
+  IP_NOT_ALLOWED: "IP ของเซิร์ฟเวอร์ไม่อยู่ใน whitelist ของ EasySlip",
+  ACCOUNT_NOT_VERIFIED: "บัญชี EasySlip ยังยืนยันตัวตนไม่ครบ",
+  account_not_verified: "บัญชี EasySlip ยังยืนยันตัวตนไม่ครบ",
+  application_expired: "แพ็กเกจ EasySlip หมดอายุ",
+  API_SERVER_ERROR: "ระบบ EasySlip ขัดข้องชั่วคราว",
   INVALID_PAYLOAD: "อ่านข้อมูลจากสลิปไม่ได้ ลองสแกน QR บนสลิปใหม่อีกครั้ง",
   INVALID_IMAGE: "อ่านรูปสลิปไม่ได้ ลองถ่ายใหม่ให้เห็น QR ชัด ๆ",
   IMAGE_SIZE_TOO_LARGE: "ไฟล์รูปใหญ่เกินไป",
@@ -160,14 +205,23 @@ export const Route = createFileRoute("/api/verify-slip")({
             body: JSON.stringify(payloadBody),
           });
           slipJson = (await res.json()) as Record<string, unknown>;
+          console.log(
+            "[verify-slip] easyslip response",
+            res.status,
+            JSON.stringify(slipJson).slice(0, 1200),
+          );
 
-          if (!res.ok) {
-            const code = String(slipJson?.message ?? slipJson?.error ?? "UNKNOWN");
+          // EasySlip ตอบ error ได้ทั้งแบบ HTTP 4xx และแบบ HTTP 200 ที่มี success:false
+          const code = errorCode(slipJson);
+          if (!res.ok || code) {
+            const c = code ?? `HTTP_${res.status}`;
             return json(200, {
               ok: false,
               status: "failed",
-              code,
-              error: ERROR_TH[code] ?? `ตรวจสลิปไม่สำเร็จ (${code})`,
+              code: c,
+              retryable: /PENDING|pending/.test(c),
+              error: ERROR_TH[c] ?? `ตรวจสลิปไม่สำเร็จ (${c})`,
+              debug: slipJson,
             });
           }
         } catch (e) {
@@ -176,12 +230,14 @@ export const Route = createFileRoute("/api/verify-slip")({
           });
         }
 
-        const slip = normalize(slipJson.data ?? slipJson);
+        const slip = normalize(slipRoot(slipJson));
         if (!slip.transRef) {
           return json(200, {
             ok: false,
             status: "failed",
-            error: "อ่านเลขอ้างอิงจากสลิปไม่ได้ ลองสแกน QR บนสลิปแทนการถ่ายรูป",
+            code: "NO_TRANS_REF",
+            error: "อ่านเลขอ้างอิงจากสลิปไม่ได้ — ส่งรายละเอียดทางเทคนิคให้ผู้ดูแลระบบดู",
+            debug: slipJson,
           });
         }
 
@@ -238,6 +294,7 @@ export const Route = createFileRoute("/api/verify-slip")({
           error: matched
             ? undefined
             : `ยอดบนสลิปไม่ตรงกับยอดที่ต้องชำระ (สลิป ${slipAmount.toFixed(2)} / ต้องชำระ ${expected.toFixed(2)})`,
+          debug: matched ? undefined : slipJson,
         });
       },
     },

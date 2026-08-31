@@ -213,6 +213,12 @@ function ResultBox({
       </div>
       <div className="small mb-2">{result.error}</div>
 
+      {result.retryable && (
+        <div className="small mb-2 fw-bold">
+          สลิปเพิ่งโอนมา ธนาคารยังบันทึกไม่เสร็จ — รอสักครู่แล้วสแกนใหม่ได้เลย
+        </div>
+      )}
+
       {isMismatch && slip && (
         <div className="small">
           ยอดบนสลิป <b>{formatBaht(slip.amount)}</b> บาท · ต้องชำระ{" "}
@@ -234,7 +240,41 @@ function ResultBox({
       )}
 
       <SlipDetail slip={slip} />
+      <DebugBox result={result} />
     </div>
+  );
+}
+
+/** คำตอบดิบจากผู้ให้บริการ — ซ่อนไว้ ใช้ตอนต้องส่งให้ผู้ดูแลระบบดู */
+function DebugBox({ result }: { result: SlipVerifyResult }) {
+  if (!result.debug) return null;
+  const text = JSON.stringify(result.debug, null, 2);
+  return (
+    <details className="mt-2">
+      <summary className="small text-muted" style={{ cursor: "pointer" }}>
+        รายละเอียดทางเทคนิค {result.code ? `(${result.code})` : ""}
+      </summary>
+      <pre
+        className="small mt-2 mb-1 p-2 rounded"
+        style={{
+          background: "rgba(0,0,0,.06)",
+          maxHeight: 220,
+          overflow: "auto",
+          fontSize: ".72rem",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-all",
+        }}
+      >
+        {text}
+      </pre>
+      <button
+        type="button"
+        className="btn btn-sm btn-outline-secondary"
+        onClick={() => navigator.clipboard?.writeText(text).catch(() => {})}
+      >
+        คัดลอก
+      </button>
+    </details>
   );
 }
 
