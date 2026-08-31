@@ -1488,7 +1488,8 @@ html, body {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scaleX(-1); /* กลับด้านเหมือนกระจก ให้ลูกค้าขยับถูกทาง */
+  /* ไม่กลับภาพ: ลูกค้าโชว์ QR ให้กล้อง ไม่ใช่ส่องกระจก
+     ถ้ากล้องบางตัวให้ภาพกลับด้านมาเอง เปิดสวิตช์ที่หน้าจอได้ */
 }
 .slip-cam-frame { position: absolute; inset: 12%; pointer-events: none; }
 .slip-cam-frame .c { position: absolute; width: 16%; height: 16%; border: 4px solid #22d3ee; }
@@ -1599,3 +1600,9 @@ html, body {
   font-family: inherit;
   max-width: 60vw;
 }
+
+.slip-scr-mirror {
+  display: inline-flex; align-items: center; gap: .45em;
+  cursor: pointer; user-select: none;
+}
+.slip-scr-mirror input { width: 1.1em; height: 1.1em; accent-color: #22d3ee; }

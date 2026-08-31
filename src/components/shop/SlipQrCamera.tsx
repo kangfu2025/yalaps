@@ -11,27 +11,38 @@ interface Props {
   paused?: boolean;
   /** กล้องที่เลือกไว้ — ว่าง = ให้ระบบเลือกให้ */
   deviceId?: string | null;
+  /** กลับภาพซ้าย-ขวา (ปกติปิด เปิดเฉพาะกล้องที่ให้ภาพกลับด้านมาเอง) */
+  mirror?: boolean;
   /** ส่งรายชื่อกล้องกลับไปให้หน้าจอทำตัวเลือก */
   onDevices?: (devices: CameraDevice[]) => void;
 }
 
-type DetectorLike = { detect: (source: HTMLVideoElement) => Promise<{ rawValue: string }[]> };
+type DetectorLike = {
+  detect: (source: CanvasImageSource) => Promise<{ rawValue: string }[]>;
+};
+
+/** ระยะห่างระหว่างรอบอ่าน — ถี่กว่านี้กิน CPU ฟรี ช้ากว่านี้ลูกค้ารู้สึกว่าไม่ตอบสนอง */
+const SCAN_INTERVAL_MS = 120;
 
 /**
  * กล้องอ่าน QR บนสลิป
  *
- * ใช้ BarcodeDetector ของเบราว์เซอร์ก่อน ถ้าไม่มีค่อย fallback เป็น @zxing/browser
- * ภาพแสดงกลับด้านเหมือนกระจกเพื่อให้ลูกค้าขยับสลิปถูกทาง ตัวถอดรหัสอ่านจาก
- * เฟรมจริงไม่ได้อ่านจากภาพที่กลับด้าน จึงไม่กระทบความแม่น
+ * อ่านสองแบบสลับกันทุกรอบ: เฟรมเต็ม และเฉพาะกลางภาพที่ครอปมา
+ * การครอปช่วยมากเวลา QR เล็กหรืออยู่ไกล เพราะได้ความละเอียดต่อโมดูลสูงขึ้น
  */
-export function SlipQrCamera({ onDetected, paused = false, deviceId = null, onDevices }: Props) {
+export function SlipQrCamera({
+  onDetected,
+  paused = false,
+  deviceId = null,
+  mirror = false,
+  onDevices,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [err, setErr] = useState<string>("");
   const [ready, setReady] = useState(false);
 
   // เก็บ callback ไว้ใน ref — ถ้าใส่ลง dependency ของ effect ตรง ๆ
-  // กล้องจะถูกปิด/เปิดใหม่ทุกครั้งที่ component แม่ re-render (ซึ่งเกิดบ่อยมาก)
-  // นั่นคือสาเหตุที่กล้องเปิดไม่ติด/กระพริบในเวอร์ชันก่อน
+  // กล้องจะถูกปิด/เปิดใหม่ทุกครั้งที่ component แม่ re-render
   const detectedRef = useRef(onDetected);
   const devicesRef = useRef(onDevices);
   const pausedRef = useRef(paused);
@@ -64,9 +75,12 @@ export function SlipQrCamera({ onDetected, paused = false, deviceId = null, onDe
 
   useEffect(() => {
     let stream: MediaStream | null = null;
-    let raf = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     let zxingControls: { stop: () => void } | null = null;
     let stopped = false;
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
     function hit(value: string) {
       if (firedRef.current || pausedRef.current) return;
@@ -76,10 +90,23 @@ export function SlipQrCamera({ onDetected, paused = false, deviceId = null, onDe
       detectedRef.current(v);
     }
 
+    /** ครอปกลางภาพ 60% เพื่อให้ QR ใหญ่ขึ้นในสายตาตัวถอดรหัส */
+    function centerCrop(video: HTMLVideoElement): HTMLCanvasElement | null {
+      if (!ctx || !video.videoWidth || !video.videoHeight) return null;
+      const size = Math.floor(Math.min(video.videoWidth, video.videoHeight) * 0.6);
+      if (size < 40) return null;
+      const sx = Math.floor((video.videoWidth - size) / 2);
+      const sy = Math.floor((video.videoHeight - size) / 2);
+      canvas.width = size;
+      canvas.height = size;
+      ctx.drawImage(video, sx, sy, size, size, 0, 0, size, size);
+      return canvas;
+    }
+
     async function openStream(): Promise<MediaStream> {
       const base: MediaTrackConstraints = {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
       };
       if (deviceId) {
         try {
@@ -92,6 +119,21 @@ export function SlipQrCamera({ onDetected, paused = false, deviceId = null, onDe
         }
       }
       return navigator.mediaDevices.getUserMedia({ video: base, audio: false });
+    }
+
+    /** ขอโฟกัสอัตโนมัติต่อเนื่อง ถ้ากล้องรองรับ (เว็บแคมถูก ๆ มักไม่รองรับ) */
+    async function tryContinuousFocus(s: MediaStream) {
+      try {
+        const track = s.getVideoTracks()[0];
+        const caps = track.getCapabilities?.() as { focusMode?: string[] } | undefined;
+        if (caps?.focusMode?.includes("continuous")) {
+          await track.applyConstraints({
+            advanced: [{ focusMode: "continuous" }],
+          } as unknown as MediaTrackConstraints);
+        }
+      } catch {
+        /* กล้องไม่รองรับก็ปล่อยไป */
+      }
     }
 
     async function start() {
@@ -116,6 +158,7 @@ export function SlipQrCamera({ onDetected, paused = false, deviceId = null, onDe
         }
         video.srcObject = stream;
         await video.play();
+        await tryContinuousFocus(stream);
         setReady(true);
         listDevices(); // ต้องเรียกหลังได้สิทธิ์แล้ว ไม่งั้นชื่อกล้องจะว่าง
 
@@ -130,19 +173,26 @@ export function SlipQrCamera({ onDetected, paused = false, deviceId = null, onDe
         }
 
         if (detector) {
+          let useCrop = false;
+          // ใช้ setTimeout ไม่ใช้ requestAnimationFrame เพราะจอลูกค้าเป็นหน้าต่างที่
+          // ไม่ได้โฟกัส Chrome จะหน่วง rAF จนแทบไม่ทำงาน
           const tick = async () => {
             if (stopped) return;
             try {
               if (!pausedRef.current && video.readyState >= 2) {
-                const codes = await detector.detect(video);
-                if (codes.length) hit(codes[0].rawValue);
+                const source: CanvasImageSource | null = useCrop ? centerCrop(video) : video;
+                useCrop = !useCrop;
+                if (source) {
+                  const codes = await detector.detect(source);
+                  if (codes.length) hit(codes[0].rawValue);
+                }
               }
             } catch {
               /* เฟรมนี้อ่านไม่ได้ ข้ามไป */
             }
-            raf = requestAnimationFrame(tick);
+            if (!stopped) timer = setTimeout(tick, SCAN_INTERVAL_MS);
           };
-          raf = requestAnimationFrame(tick);
+          timer = setTimeout(tick, SCAN_INTERVAL_MS);
           return;
         }
 
@@ -170,7 +220,7 @@ export function SlipQrCamera({ onDetected, paused = false, deviceId = null, onDe
 
     return () => {
       stopped = true;
-      cancelAnimationFrame(raf);
+      if (timer) clearTimeout(timer);
       try {
         zxingControls?.stop();
       } catch {
@@ -186,7 +236,13 @@ export function SlipQrCamera({ onDetected, paused = false, deviceId = null, onDe
 
   return (
     <div className="slip-cam">
-      <video ref={videoRef} muted playsInline autoPlay />
+      <video
+        ref={videoRef}
+        muted
+        playsInline
+        autoPlay
+        style={mirror ? { transform: "scaleX(-1)" } : undefined}
+      />
       <div className="slip-cam-frame" aria-hidden="true">
         <span className="c tl" />
         <span className="c tr" />

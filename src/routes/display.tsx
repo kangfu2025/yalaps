@@ -10,6 +10,7 @@ import { submitScannedPayload } from "@/lib/slipScan";
 import { formatBaht as fmtBaht } from "@/lib/priceEngine";
 
 const CAMERA_KEY = "yala-slip-camera";
+const MIRROR_KEY = "yala-slip-camera-mirror";
 
 export const Route = createFileRoute("/display")({
   ssr: false,
@@ -40,6 +41,24 @@ function DisplayPage() {
       return "";
     }
   });
+
+  const [mirror, setMirror] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(MIRROR_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleMirror = useCallback((on: boolean) => {
+    setMirror(on);
+    try {
+      if (on) localStorage.setItem(MIRROR_KEY, "1");
+      else localStorage.removeItem(MIRROR_KEY);
+    } catch {
+      /* โหมดส่วนตัวเขียนไม่ได้ ก็ใช้ได้แค่รอบนี้ */
+    }
+  }, []);
 
   const pickCamera = useCallback((id: string) => {
     setCameraId(id);
@@ -183,27 +202,30 @@ function DisplayPage() {
         <SlipQrCamera
           paused={scanSent}
           deviceId={cameraId || null}
+          mirror={mirror}
           onDevices={handleDevices}
           onDetected={handleSlipDetected}
         />
 
-        {cameras.length > 1 && (
-          <div className="slip-scr-campick">
-            <label htmlFor="slipCam">กล้องที่ใช้</label>
-            <select
-              id="slipCam"
-              value={cameraId}
-              onChange={(e) => pickCamera(e.target.value)}
-            >
-              <option value="">กล้องเริ่มต้นของเครื่อง</option>
-              {cameras.map((c) => (
-                <option key={c.deviceId} value={c.deviceId}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div className="slip-scr-campick">
+          {cameras.length > 1 && (
+            <>
+              <label htmlFor="slipCam">กล้อง</label>
+              <select id="slipCam" value={cameraId} onChange={(e) => pickCamera(e.target.value)}>
+                <option value="">กล้องเริ่มต้นของเครื่อง</option>
+                {cameras.map((c) => (
+                  <option key={c.deviceId} value={c.deviceId}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+          <label className="slip-scr-mirror">
+            <input type="checkbox" checked={mirror} onChange={(e) => toggleMirror(e.target.checked)} />
+            กลับภาพซ้าย-ขวา
+          </label>
+        </div>
 
         <div className="slip-scr-steps">
           <div className="slip-scr-step">
@@ -213,12 +235,14 @@ function DisplayPage() {
             <span className="n">2</span> หัน <b>QR บนสลิป</b> เข้าหากล้อง
           </div>
           <div className="slip-scr-step">
-            <span className="n">3</span> ถือนิ่ง ๆ ให้ QR อยู่ในกรอบ
+            <span className="n">3</span> ถือห่างกล้องราว 1 ฝ่ามือ ให้ QR อยู่ในกรอบ
           </div>
         </div>
 
         <div className="slip-scr-foot">
-          {scanSent ? "อ่านสลิปได้แล้ว กำลังตรวจกับธนาคาร..." : "ระบบจะอ่านให้อัตโนมัติ ไม่ต้องกดอะไร"}
+          {scanSent
+            ? "อ่านสลิปได้แล้ว กำลังตรวจกับธนาคาร..."
+            : "ระบบจะอ่านให้อัตโนมัติ ไม่ต้องกดอะไร — ถ้าอ่านไม่ติด ลองเพิ่มความสว่างหน้าจอมือถือ"}
         </div>
       </div>
     );
