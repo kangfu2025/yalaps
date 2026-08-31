@@ -470,6 +470,16 @@ function StartPcModal({ machine, onClose, onSuccess }: { machine: Machine; onClo
   const qrAmount =
     payMode === "transfer" ? price : payMode === "mixed" ? Number(transfer) || 0 : 0;
 
+
+  const [autoRun, setAutoRun] = useState(false);
+  function handleSlipVerified() {
+    if (autoRun || busy) return;
+    setAutoRun(true);
+    setTimeout(() => {
+      Promise.resolve(submit()).catch(() => setAutoRun(false));
+    }, 900);
+  }
+
   async function submit() {
     if (finalMinutes <= 0 || busy) return;
     setBusy(true);
@@ -597,7 +607,15 @@ function StartPcModal({ machine, onClose, onSuccess }: { machine: Machine; onClo
             <div className="alert alert-warning py-2 small">🧾 ค้างจ่าย — เปิดเครื่องก่อน ยังไม่รับเงิน (เก็บตอนเช็คบิล)</div>
           )}
 
-          <PromptPayQR amount={qrAmount} />
+          <PromptPayQR
+            amount={qrAmount}
+            onVerified={payMode === "transfer" ? handleSlipVerified : undefined}
+          />
+          {autoRun && (
+            <div className="alert alert-success py-2 text-center mt-2 mb-0 fw-bold">
+              ✅ ตรวจสลิปผ่านแล้ว — กำลังเปิดเครื่อง...
+            </div>
+          )}
 
           <div className="d-flex justify-content-end gap-2 mt-3">
             <button className="btn btn-secondary" onClick={onClose}>ยกเลิก</button>
@@ -622,6 +640,16 @@ function ExtendPcModal({ machine, session, onClose, onSuccess }: { machine: Mach
   const price = calcPcPrice(finalMinutes);
   const qrAmount =
     payMode === "transfer" ? price : payMode === "mixed" ? Number(transfer) || 0 : 0;
+
+
+  const [autoRun, setAutoRun] = useState(false);
+  function handleSlipVerified() {
+    if (autoRun || busy) return;
+    setAutoRun(true);
+    setTimeout(() => {
+      Promise.resolve(submit()).catch(() => setAutoRun(false));
+    }, 900);
+  }
 
   async function submit() {
     if (finalMinutes <= 0 || busy) return;
@@ -704,7 +732,15 @@ function ExtendPcModal({ machine, session, onClose, onSuccess }: { machine: Mach
             <div className="alert alert-warning py-2 small">🧾 ค้างจ่าย — ต่อเวลาโดยยังไม่รับเงิน (เก็บตอนเช็คบิล)</div>
           )}
 
-          <PromptPayQR amount={qrAmount} />
+          <PromptPayQR
+            amount={qrAmount}
+            onVerified={payMode === "transfer" ? handleSlipVerified : undefined}
+          />
+          {autoRun && (
+            <div className="alert alert-success py-2 text-center mt-2 mb-0 fw-bold">
+              ✅ ตรวจสลิปผ่านแล้ว — กำลังต่อเวลา...
+            </div>
+          )}
 
           <div className="d-flex justify-content-end gap-2 mt-3">
             <button className="btn btn-secondary" onClick={onClose}>ยกเลิก</button>
@@ -767,6 +803,16 @@ function EndPcModal({ machine, session, onClose, onSuccess }: { machine: Machine
     alreadyRedeemed && foodAmount === 0 ? 0 :
     payMode === "transfer" ? remaining :
     payMode === "mixed" ? Number(transfer) || 0 : 0;
+
+
+  const [autoRun, setAutoRun] = useState(false);
+  function handleSlipVerified() {
+    if (autoRun || busy) return;
+    setAutoRun(true);
+    setTimeout(() => {
+      Promise.resolve(submit()).catch(() => setAutoRun(false));
+    }, 900);
+  }
 
   async function submit() {
     if (busy) return;
@@ -900,7 +946,15 @@ function EndPcModal({ machine, session, onClose, onSuccess }: { machine: Machine
                 </div>
               )}
 
-              <PromptPayQR amount={qrAmount} />
+              <PromptPayQR
+            amount={qrAmount}
+            onVerified={payMode === "transfer" ? handleSlipVerified : undefined}
+          />
+          {autoRun && (
+            <div className="alert alert-success py-2 text-center mt-2 mb-0 fw-bold">
+              ✅ ตรวจสลิปผ่านแล้ว — กำลังปิดบิล...
+            </div>
+          )}
             </>
           )}
 

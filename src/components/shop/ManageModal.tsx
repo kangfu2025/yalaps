@@ -60,6 +60,7 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
   const [tab, setTab] = useState<Tab>("food");
   const [busy, setBusy] = useState(false);
   const [confirmCheckout, setConfirmCheckout] = useState(false);
+  const [autoRun, setAutoRun] = useState<null | "extend" | "checkout">(null);
 
   const override = promotion ? getZonePrice(machine.zone, promotion) : null;
 
@@ -199,8 +200,8 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
     }
   }
 
-  async function handleExtend(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleExtend(e?: React.FormEvent) {
+    e?.preventDefault();
     if (busy) return;
     setBusy(true);
     try {
@@ -220,7 +221,22 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
     }
   }
 
-  async function doCheckout() {
+  /**
+   * สลิปผ่านแล้วทำงานต่อให้เลย
+   * เรียกเฉพาะตอนจ่ายโอนล้วน — ยอดบนสลิปจึงเท่ากับยอดที่ต้องชำระทั้งก้อน
+   * ถ้าจ่ายแบบผสม สลิปยืนยันได้แค่ส่วนที่โอน พนักงานต้องกดเอง
+   */
+  function runAfterSlip(kind: "extend" | "checkout") {
+    if (autoRun || busy) return;
+    setAutoRun(kind);
+    // หน่วงสั้น ๆ ให้พนักงานเห็นว่าสลิปผ่านก่อนหน้าต่างปิด
+    setTimeout(() => {
+      const run = kind === "extend" ? handleExtend() : doCheckout({ keepDisplay: true });
+      Promise.resolve(run).catch(() => setAutoRun(null));
+    }, 900);
+  }
+
+  async function doCheckout(opts: { keepDisplay?: boolean } = {}) {
     if (busy) return;
     setBusy(true);
     setConfirmCheckout(false);
@@ -262,7 +278,7 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
         member,
         useFreeHour: useFreeHour && canRedeem,
       });
-      await clearDisplay();
+      if (!opts.keepDisplay) await clearDisplay();
       onSuccess();
       onClose();
     } catch (err) {
@@ -403,7 +419,16 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
                     {extPay === "credit" && (
                       <div className="alert alert-warning py-2 small mt-2 mb-0">ค้างจ่าย — ต่อเวลาโดยไม่หักเงิน</div>
                     )}
-                    <PromptPayQR amount={extPay === "transfer" ? extPrice : extPay === "mixed" ? (Number(extTransfer) || 0) : 0} />
+                    <PromptPayQR
+                      amount={extPay === "transfer" ? extPrice : extPay === "mixed" ? (Number(extTransfer) || 0) : 0}
+                      reservationId={reservation.id}
+                      onVerified={extPay === "transfer" ? () => runAfterSlip("extend") : undefined}
+                    />
+                    {autoRun === "extend" && (
+                      <div className="alert alert-success py-2 text-center mt-2 mb-0 fw-bold small">
+                        ✅ ตรวจสลิปผ่านแล้ว — กำลังต่อเวลา...
+                      </div>
+                    )}
                     <button className="btn btn-primary w-100 fw-bold mt-2 d-inline-flex align-items-center justify-content-center gap-1" disabled={busy}><Plus size={16} /> ต่อเวลา {Math.round(extHrs * 60)} นาที</button>
                   </form>
                 )}
@@ -484,7 +509,16 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
                       </div>
                     )}
 
-                    <PromptPayQR amount={finalPay === "transfer" ? grandRemaining : finalPay === "mixed" ? (Number(finalTransfer) || 0) : 0} reservationId={reservation.id} />
+                    <PromptPayQR
+                      amount={finalPay === "transfer" ? grandRemaining : finalPay === "mixed" ? (Number(finalTransfer) || 0) : 0}
+                      reservationId={reservation.id}
+                      onVerified={finalPay === "transfer" ? () => runAfterSlip("checkout") : undefined}
+                    />
+                    {autoRun === "checkout" && (
+                      <div className="alert alert-success py-2 text-center mt-2 mb-0 fw-bold small">
+                        ✅ ตรวจสลิปผ่านแล้ว — กำลังปิดบิล...
+                      </div>
+                    )}
                     <button type="submit" className="btn btn-danger w-100 fw-bold mt-2 d-inline-flex align-items-center justify-content-center gap-1" disabled={busy}><BellRing size={16} /> ปิดบิล</button>
                   </form>
                   )
@@ -518,7 +552,7 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
             )}
           </div>
         }
-        onConfirm={doCheckout}
+        onConfirm={() => doCheckout()}
         onCancel={() => setConfirmCheckout(false)}
       />
     </div>

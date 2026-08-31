@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle2, XCircle, Loader2, ScanLine } from "lucide-react";
 import { buildPromptpayDataUrl, PROMPTPAY_ID } from "@/lib/promptpay";
 import { formatBaht } from "@/lib/priceEngine";
@@ -17,6 +17,12 @@ interface Props {
   productSaleId?: string | null;
   /** ซ่อนปุ่มตรวจสลิป */
   hideVerify?: boolean;
+  /**
+   * เรียกเมื่อตรวจสลิปผ่าน — ผู้เรียกเอาไปทำงานต่อได้เลย เช่น เปิดเครื่องอัตโนมัติ
+   * ควรส่งมาเฉพาะตอนที่ยอดใน QR = ยอดที่ต้องชำระทั้งหมด (จ่ายโอนล้วน)
+   * ถ้าเป็นการจ่ายแบบผสม สลิปยืนยันได้แค่ส่วนที่โอน ยังไม่ควรทำงานต่อเอง
+   */
+  onVerified?: () => void;
 }
 
 type Phase = "idle" | "waiting" | "done";
@@ -27,6 +33,7 @@ export function PromptPayQR({
   pcSessionId = null,
   productSaleId = null,
   hideVerify = false,
+  onVerified,
 }: Props) {
   const [url, setUrl] = useState<string>("");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -34,8 +41,22 @@ export function PromptPayQR({
   const [err, setErr] = useState<string | null>(null);
   const [manual, setManual] = useState(false);
   const [verifiedAmount, setVerifiedAmount] = useState<number | null>(null);
+  const amountRef = useRef(amount);
+  useEffect(() => {
+    amountRef.current = amount;
+  }, [amount]);
   const requestRef = useRef<string | null>(null);
   const stopRef = useRef<(() => void) | null>(null);
+  const verifiedCbRef = useRef(onVerified);
+  useEffect(() => {
+    verifiedCbRef.current = onVerified;
+  }, [onVerified]);
+
+  /** จุดเดียวที่บันทึกว่า "สลิปผ่านแล้ว" ทุกทางที่ตรวจผ่านต้องมาที่นี่ */
+  const markVerified = useCallback(() => {
+    setVerifiedAmount(amountRef.current);
+    verifiedCbRef.current?.();
+  }, []);
 
   useEffect(() => {
     if (amount <= 0) {
@@ -92,7 +113,7 @@ export function PromptPayQR({
           requestRef.current = null;
           setResult(r);
           setPhase("done");
-          if (r.ok) setVerifiedAmount(amount);
+          if (r.ok) markVerified();
         },
         (m) => {
           requestRef.current = null;
@@ -120,7 +141,7 @@ export function PromptPayQR({
       });
       setResult(r);
       setPhase("done");
-      if (r.ok) setVerifiedAmount(amount);
+      if (r.ok) markVerified();
       await showSlipResultScreen(
         r.ok,
         r.ok ? "ยืนยันการชำระเงินเรียบร้อย" : (r.error ?? "ตรวจสลิปไม่ผ่าน"),
@@ -229,8 +250,8 @@ export function PromptPayQR({
           productSaleId={productSaleId}
           onClose={() => setManual(false)}
           onVerified={() => {
-            setVerifiedAmount(amount);
             setManual(false);
+            markVerified();
           }}
         />
       )}

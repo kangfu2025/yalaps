@@ -32,6 +32,7 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
   const [cfg, setCfg] = useState<PointsConfig>(DEFAULT_POINTS_CONFIG);
   // ชื่อในช่องนี้มาจากข้อมูลสมาชิกหรือพนักงานพิมพ์เอง (ใช้ตัดสินใจตอนถอดสมาชิกออก)
   const [nameFromMember, setNameFromMember] = useState(false);
+  const [autoStarting, setAutoStarting] = useState(false);
 
   useEffect(() => { getPointsConfig().then(setCfg).catch(() => {}); }, []);
 
@@ -45,6 +46,17 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
       setName("");
       setNameFromMember(false);
     }
+  }
+
+  // จ่ายโอนล้วน = สลิปยืนยันยอดทั้งบิล เปิดเครื่องต่อได้เลย
+  // จ่ายแบบผสมยังไม่เปิดเอง เพราะสลิปยืนยันได้แค่ส่วนที่โอน
+  function handleSlipVerified() {
+    if (autoStarting || busy) return;
+    setAutoStarting(true);
+    // หน่วงสั้น ๆ ให้พนักงานเห็นว่าสลิปผ่านแล้วก่อนหน้าต่างปิด
+    setTimeout(() => {
+      handleSubmit(undefined, { keepDisplay: true }).catch(() => setAutoStarting(false));
+    }, 900);
   }
 
   const override = machine && promotion ? getZonePrice(machine.zone, promotion) : null;
@@ -88,8 +100,8 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
 
   if (!machine) return null;
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(e?: React.FormEvent, opts: { keepDisplay?: boolean } = {}) {
+    e?.preventDefault();
     if (!machine || busy) return;
     setBusy(true);
     try {
@@ -115,7 +127,8 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
         advanceTransfer: finalTransfer,
         memberId: member?.id ?? null,
       });
-      await clearDisplay();
+      // เปิดอัตโนมัติหลังตรวจสลิป: ปล่อยให้จอลูกค้าโชว์ "ชำระเงินเรียบร้อย" ต่อจนครบเวลา
+      if (!opts.keepDisplay) await clearDisplay();
       onSuccess();
       onClose();
     } catch (err) {
@@ -229,7 +242,16 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
             </div>
           )}
 
-          <PromptPayQR amount={qrAmount} />
+          <PromptPayQR
+            amount={qrAmount}
+            onVerified={payMode === "transfer" ? handleSlipVerified : undefined}
+          />
+
+          {autoStarting && (
+            <div className="alert alert-success py-2 text-center mt-2 mb-0 fw-bold">
+              ✅ ตรวจสลิปผ่านแล้ว — กำลังเปิดเครื่อง...
+            </div>
+          )}
 
           <div className="modal-footer border-0 mt-3">
             <button type="button" className="btn btn-secondary" onClick={() => { clearDisplay(); onClose(); }}>
