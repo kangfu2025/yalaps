@@ -1,0 +1,4 @@
+cd D:\play-station-main\pc-agent
+.\install.ps1 -MachineId "<UUID จากตาราง machines>" -MachineNumber 1
+
+
