@@ -19,6 +19,7 @@ import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as ApiAdminUsersRouteImport } from './routes/api/admin-users'
 import { Route as ApiLinePushRouteImport } from './routes/api/line-push'
+import { Route as ApiSlipStatusRouteImport } from './routes/api/slip-status'
 import { Route as ApiVerifySlipRouteImport } from './routes/api/verify-slip'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 
@@ -74,6 +75,11 @@ const ApiLinePushRoute = ApiLinePushRouteImport.update({
   path: '/api/line-push',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSlipStatusRoute = ApiSlipStatusRouteImport.update({
+  id: '/api/slip-status',
+  path: '/api/slip-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVerifySlipRoute = ApiVerifySlipRouteImport.update({
   id: '/api/verify-slip',
   path: '/api/verify-slip',
@@ -97,6 +103,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/api/admin-users': typeof ApiAdminUsersRoute
   '/api/line-push': typeof ApiLinePushRoute
+  '/api/slip-status': typeof ApiSlipStatusRoute
   '/api/verify-slip': typeof ApiVerifySlipRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -111,6 +118,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/api/admin-users': typeof ApiAdminUsersRoute
   '/api/line-push': typeof ApiLinePushRoute
+  '/api/slip-status': typeof ApiSlipStatusRoute
   '/api/verify-slip': typeof ApiVerifySlipRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -126,6 +134,7 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/api/admin-users': typeof ApiAdminUsersRoute
   '/api/line-push': typeof ApiLinePushRoute
+  '/api/slip-status': typeof ApiSlipStatusRoute
   '/api/verify-slip': typeof ApiVerifySlipRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -142,6 +151,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/api/admin-users'
     | '/api/line-push'
+    | '/api/slip-status'
     | '/api/verify-slip'
     | '/.mcp/invoke-tool/$tool'
   fileRoutesByTo: FileRoutesByTo
@@ -156,6 +166,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/api/admin-users'
     | '/api/line-push'
+    | '/api/slip-status'
     | '/api/verify-slip'
     | '/.mcp/invoke-tool/$tool'
   id:
@@ -170,6 +181,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/api/admin-users'
     | '/api/line-push'
+    | '/api/slip-status'
     | '/api/verify-slip'
     | '/.mcp/invoke-tool/$tool'
   fileRoutesById: FileRoutesById
@@ -185,6 +197,7 @@ export interface RootRouteChildren {
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiAdminUsersRoute: typeof ApiAdminUsersRoute
   ApiLinePushRoute: typeof ApiLinePushRoute
+  ApiSlipStatusRoute: typeof ApiSlipStatusRoute
   ApiVerifySlipRoute: typeof ApiVerifySlipRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -261,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLinePushRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/slip-status': {
+      id: '/api/slip-status'
+      path: '/api/slip-status'
+      fullPath: '/api/slip-status'
+      preLoaderRoute: typeof ApiSlipStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/verify-slip': {
       id: '/api/verify-slip'
       path: '/api/verify-slip'
@@ -290,6 +310,7 @@ const rootRouteChildren: RootRouteChildren = {
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   ApiAdminUsersRoute: ApiAdminUsersRoute,
   ApiLinePushRoute: ApiLinePushRoute,
+  ApiSlipStatusRoute: ApiSlipStatusRoute,
   ApiVerifySlipRoute: ApiVerifySlipRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
 }

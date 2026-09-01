@@ -1,7 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import { ScanLine, Upload, CheckCircle2, XCircle, AlertTriangle, X, Barcode } from "lucide-react";
+import {
+  ScanLine,
+  Upload,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  X,
+  Barcode,
+  Activity,
+} from "lucide-react";
 import { BarcodeScanner } from "./BarcodeScanner";
-import { verifySlip, type SlipVerifyResult } from "@/lib/slipVerify";
+import {
+  verifySlip,
+  checkSlipStatus,
+  type SlipVerifyResult,
+  type SlipStatus,
+} from "@/lib/slipVerify";
 import { formatBaht } from "@/lib/priceEngine";
 import { useBarcodeGun } from "@/hooks/useBarcodeGun";
 
@@ -36,6 +50,8 @@ export function SlipVerifyModal({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SlipVerifyResult | null>(null);
   const [gunFocused, setGunFocused] = useState(true);
+  const [status, setStatus] = useState<SlipStatus | null>(null);
+  const [checking, setChecking] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const gunRef = useRef<HTMLInputElement | null>(null);
@@ -218,6 +234,60 @@ export function SlipVerifyModal({
 
           {busy && <div className="text-center text-muted mt-3">กำลังตรวจกับธนาคาร...</div>}
 
+          <div className="text-center mt-3">
+            <button
+              type="button"
+              className="btn btn-link btn-sm text-muted p-0 d-inline-flex align-items-center gap-1"
+              disabled={checking}
+              onClick={async () => {
+                setChecking(true);
+                setStatus(null);
+                try {
+                  setStatus(await checkSlipStatus());
+                } finally {
+                  setChecking(false);
+                }
+              }}
+            >
+              <Activity size={13} /> {checking ? "กำลังตรวจ..." : "ตรวจการเชื่อมต่อ EasySlip"}
+            </button>
+          </div>
+
+          {status && (
+            <div
+              className={`alert ${status.ok ? "alert-success" : "alert-danger"} py-2 small mt-2 mb-0 text-start`}
+            >
+              {status.ok ? (
+                <>
+                  <CheckCircle2 size={14} /> เชื่อมต่อได้ปกติ ({status.latencyMs} มิลลิวินาที)
+                  {status.info != null && (
+                    <details className="mt-2">
+                      <summary style={{ cursor: "pointer" }}>ข้อมูลบัญชี / โควตา</summary>
+                      <pre
+                        className="mt-2 mb-0 p-2 rounded"
+                        style={{
+                          background: "rgba(0,0,0,.06)",
+                          fontSize: ".7rem",
+                          maxHeight: 180,
+                          overflow: "auto",
+                        }}
+                      >
+                        {JSON.stringify(status.info, null, 2)}
+                      </pre>
+                    </details>
+                  )}
+                </>
+              ) : (
+                <>
+                  <AlertTriangle size={14} /> {status.error}
+                  {status.latencyMs != null && (
+                    <span className="text-muted"> ({status.latencyMs} มิลลิวินาที)</span>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           {result && <ResultBox result={result} expectedAmount={expectedAmount} />}
         </div>
       </div>
@@ -254,7 +324,15 @@ function ResultBox({
         {isMismatch ? <AlertTriangle size={20} /> : <XCircle size={20} />}
         {isDuplicate ? "สลิปใบนี้ถูกใช้ไปแล้ว" : isMismatch ? "ยอดไม่ตรง" : "ตรวจไม่ผ่าน"}
       </div>
-      <div className="small mb-2">{result.error}</div>
+      <div className="small mb-2">
+        {result.error}
+        {result.latencyMs != null && (
+          <span className="text-muted">
+            {" "}
+            · ใช้เวลา {(result.latencyMs / 1000).toFixed(1)} วินาที
+          </span>
+        )}
+      </div>
 
       {result.retryable && (
         <div className="small mb-2 fw-bold">

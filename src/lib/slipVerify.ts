@@ -23,6 +23,8 @@ export interface SlipVerifyResult {
   debug?: unknown;
   /** ข้อความที่อ่านได้จากสลิปจริง ๆ ที่ส่งไปตรวจ — ใช้ไล่ปัญหาเครื่องสแกน */
   scanned?: string;
+  /** เวลาที่รอ EasySlip (มิลลิวินาที) */
+  latencyMs?: number;
   previous?: {
     created_at: string;
     expected_amount: number;
@@ -117,5 +119,31 @@ export async function slipsReady(): Promise<boolean> {
     if (code === "PGRST205" || code === "42P01" || /Could not find the table/i.test(msg))
       return false;
     return true;
+  }
+}
+
+export interface SlipStatus {
+  hasKey: boolean;
+  ok: boolean;
+  latencyMs?: number;
+  httpStatus?: number;
+  error?: string;
+  info?: unknown;
+  debug?: unknown;
+}
+
+/** ตรวจว่าเซิร์ฟเวอร์ต่อ EasySlip ได้ไหม — ไม่เปลืองโควตาตรวจสลิป */
+export async function checkSlipStatus(): Promise<SlipStatus> {
+  const { data: sess } = await supabase.auth.getSession();
+  const token = sess.session?.access_token;
+  if (!token) return { hasKey: false, ok: false, error: "กรุณาเข้าสู่ระบบใหม่" };
+
+  const res = await fetch("/api/slip-status", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  try {
+    return (await res.json()) as SlipStatus;
+  } catch {
+    return { hasKey: false, ok: false, error: `ตรวจไม่สำเร็จ (HTTP ${res.status})` };
   }
 }

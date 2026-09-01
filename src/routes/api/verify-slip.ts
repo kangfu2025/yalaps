@@ -17,6 +17,9 @@ const EASYSLIP_ENDPOINT = "https://api.easyslip.com/v2/verify/bank";
 /** ยอมรับความคลาดเคลื่อนของยอดได้ 1 สตางค์ (ปัดเศษของธนาคาร) */
 const AMOUNT_TOLERANCE = 0.01;
 
+/** ไม่ให้พนักงานยืนรอไม่รู้จบถ้าเน็ตไปไม่ถึง EasySlip */
+const EASYSLIP_TIMEOUT_MS = 15_000;
+
 interface VerifyBody {
   /** ข้อความใน QR บนสลิป (ได้จากการสแกน) — ทางที่แม่นและถูกที่สุด */
   payload?: string;
@@ -226,6 +229,9 @@ export const Route = createFileRoute("/api/verify-slip")({
 
         // ---------- 3) เรียก EasySlip ----------
         let slipJson: Record<string, unknown>;
+        const startedAt = Date.now();
+        const ac = new AbortController();
+        const timeoutId = setTimeout(() => ac.abort(), EASYSLIP_TIMEOUT_MS);
         try {
           const payloadBody: Record<string, unknown> = body.payload
             ? { payload: body.payload.trim() }
@@ -238,11 +244,13 @@ export const Route = createFileRoute("/api/verify-slip")({
               "Content-Type": "application/json",
             },
             body: JSON.stringify(payloadBody),
+            signal: ac.signal,
           });
           slipJson = (await res.json()) as Record<string, unknown>;
           console.log(
-            "[verify-slip] easyslip response",
+            "[verify-slip] easyslip",
             res.status,
+            `${Date.now() - startedAt}ms`,
             JSON.stringify(slipJson).slice(0, 1200),
           );
 
@@ -256,14 +264,26 @@ export const Route = createFileRoute("/api/verify-slip")({
               code: c,
               retryable: /PENDING|pending/.test(c),
               error: ERROR_TH[c] ?? `ตรวจสลิปไม่สำเร็จ (${c})`,
+              latencyMs: Date.now() - startedAt,
               debug: slipJson,
               scanned: body.payload ? body.payload.trim().slice(0, 300) : undefined,
             });
           }
         } catch (e) {
-          return json(502, {
-            error: "ติดต่อ EasySlip ไม่ได้: " + (e instanceof Error ? e.message : String(e)),
+          const aborted = (e as { name?: string } | null)?.name === "AbortError";
+          const latencyMs = Date.now() - startedAt;
+          console.error("[verify-slip] easyslip failed", `${latencyMs}ms`, e);
+          return json(200, {
+            ok: false,
+            status: "failed",
+            code: aborted ? "TIMEOUT" : "NETWORK",
+            latencyMs,
+            error: aborted
+              ? `ต่อ EasySlip ไม่ติดภายใน ${EASYSLIP_TIMEOUT_MS / 1000} วินาที — กด "ตรวจการเชื่อมต่อ" ในหน้านี้เพื่อดูว่าเน็ตหรือ API key มีปัญหา`
+              : "ติดต่อ EasySlip ไม่ได้: " + (e instanceof Error ? e.message : String(e)),
           });
+        } finally {
+          clearTimeout(timeoutId);
         }
 
         const slip = normalize(slipRoot(slipJson));
