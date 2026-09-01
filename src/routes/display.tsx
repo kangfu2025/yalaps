@@ -72,18 +72,15 @@ function DisplayPage() {
 
   const handleDevices = useCallback((list: CameraDevice[]) => setCameras(list), []);
 
-  const handleSlipDetected = useCallback(
-    (code: string) => {
-      const reqId = payloadRef.current.slip_request_id;
-      if (!reqId) return;
-      setScanSent(true);
-      submitScannedPayload(reqId, code).catch((e) => {
-        console.error("submit slip scan failed", e);
-        setScanSent(false);
-      });
-    },
-    [],
-  );
+  const handleSlipDetected = useCallback((code: string) => {
+    const reqId = payloadRef.current.slip_request_id;
+    if (!reqId) return;
+    setScanSent(true);
+    submitScannedPayload(reqId, code).catch((e) => {
+      console.error("submit slip scan failed", e);
+      setScanSent(false);
+    });
+  }, []);
 
   // QR สมัครสมาชิก — ชี้ไปหน้า /join ของโดเมนเดียวกับที่จอนี้เปิดอยู่
   useEffect(() => {
@@ -144,11 +141,15 @@ function DisplayPage() {
     loadPromos();
     const ch1 = supabase
       .channel("display-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "customer_display" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "customer_display" }, () =>
+        load(),
+      )
       .subscribe();
     const ch2 = supabase
       .channel("promo-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "promo_images" }, () => loadPromos())
+      .on("postgres_changes", { event: "*", schema: "public", table: "promo_images" }, () =>
+        loadPromos(),
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(ch1);
@@ -203,6 +204,7 @@ function DisplayPage() {
           paused={scanSent}
           deviceId={cameraId || null}
           mirror={mirror}
+          scanKey={payload.slip_request_id ?? null}
           onDevices={handleDevices}
           onDetected={handleSlipDetected}
         />
@@ -222,7 +224,11 @@ function DisplayPage() {
             </>
           )}
           <label className="slip-scr-mirror">
-            <input type="checkbox" checked={mirror} onChange={(e) => toggleMirror(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={mirror}
+              onChange={(e) => toggleMirror(e.target.checked)}
+            />
             กลับภาพซ้าย-ขวา
           </label>
         </div>
@@ -310,12 +316,12 @@ function DisplayPage() {
       <div className="display-portrait display-join-done">
         <div className="join-done-check">✓</div>
         <div className="join-done-title">สมัครสมาชิกสำเร็จ</div>
-        {payload.customer_name && (
-          <div className="join-done-name">คุณ{payload.customer_name}</div>
-        )}
+        {payload.customer_name && <div className="join-done-name">คุณ{payload.customer_name}</div>}
         <div className="join-done-sub">ยินดีต้อนรับสู่ YALA PLAYSTATION</div>
         <div className="join-done-note">
-          แจ้งเบอร์โทรกับพนักงานทุกครั้งที่มาเล่น<br />ระบบจะสะสมแต้มให้อัตโนมัติ
+          แจ้งเบอร์โทรกับพนักงานทุกครั้งที่มาเล่น
+          <br />
+          ระบบจะสะสมแต้มให้อัตโนมัติ
         </div>
       </div>
     );
@@ -344,7 +350,6 @@ function DisplayPage() {
     );
   }
 
-
   // มีการชำระ → แสดง QR เต็มจอ
   const chargeLabel =
     payload.charge_type === "start"
@@ -365,15 +370,19 @@ function DisplayPage() {
         <div className="brand">🎮 YALA PLAYSTATION</div>
         {payload.zone && (
           <div className="zone-badge">
-            {payload.zone === "sofa" ? "🛋️ โซฟา" : payload.zone === "racing" ? "🏎️ รถแข่ง" : "🖥️ PC"}
-            {typeof payload.machine_number === "number" ? ` · เครื่อง ${payload.machine_number}` : ""}
+            {payload.zone === "sofa"
+              ? "🛋️ โซฟา"
+              : payload.zone === "racing"
+                ? "🏎️ รถแข่ง"
+                : "🖥️ PC"}
+            {typeof payload.machine_number === "number"
+              ? ` · เครื่อง ${payload.machine_number}`
+              : ""}
           </div>
         )}
       </div>
 
-      {payload.customer_name && (
-        <div className="display-customer">👤 {payload.customer_name}</div>
-      )}
+      {payload.customer_name && <div className="display-customer">👤 {payload.customer_name}</div>}
 
       <div className="display-amount-block">
         <div className="amount-label">{chargeLabel}</div>
@@ -405,7 +414,8 @@ function DisplayPage() {
             <span className="bd-value">{formatBaht(payload.food_charge ?? 0)} บาท</span>
           </div>
         )}
-        {typeof payload.food_amount === "number" && payload.food_amount > 0 &&
+        {typeof payload.food_amount === "number" &&
+          payload.food_amount > 0 &&
           payload.charge_type !== "food" && (
             <div className="bd-row">
               <span className="bd-label">🍽️ ค่าอาหารสะสม</span>

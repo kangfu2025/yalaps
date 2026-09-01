@@ -49,7 +49,6 @@ export function SlipVerifyModal({
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SlipVerifyResult | null>(null);
-  const [gunFocused, setGunFocused] = useState(true);
   const [status, setStatus] = useState<SlipStatus | null>(null);
   const [checking, setChecking] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
@@ -78,11 +77,19 @@ export function SlipVerifyModal({
     gunRef.current?.focus();
   }, []);
 
-  // เผื่อโฟกัสหลุดไปที่อื่น ก็ยังรับจากเครื่องสแกนได้
-  // ปิดตอนช่องยิงมีโฟกัส ไม่งั้นจะจับซ้ำกับ onKeyDown ของช่องแล้วยิงสองครั้ง
-  useBarcodeGun((code) => runScanned(code), {
-    enabled: !scanning && !busy && !gunFocused,
-  });
+  // ตัวจับข้อมูลจากเครื่องสแกน — เหลือทางเดียวเท่านั้น
+  //
+  // เดิมมีสองทางทำงานพร้อมกัน: hook ระดับหน้าต่าง กับ onKeyDown ของช่องกรอก
+  // ผลคือถ้าโฟกัสอยู่ในช่องจะยิงซ้ำสองครั้ง แต่ถ้าโฟกัสไม่เคยลงช่องเลย
+  // (เช่น เบราว์เซอร์ไม่ยอมโฟกัสอัตโนมัติ) กลับกลายเป็นไม่มีใครจับเลยสักทาง
+  // ตอนนี้ให้ hook จับทั้งหมด ช่องกรอกเหลือหน้าที่แค่ให้เห็นว่ากำลังยิงเข้ามา
+  useBarcodeGun(
+    (code) => {
+      if (gunRef.current) gunRef.current.value = "";
+      runScanned(code);
+    },
+    { enabled: !scanning && !busy },
+  );
 
   async function run(input: { payload?: string; imageBase64?: string }) {
     if (busy) return;
@@ -157,17 +164,6 @@ export function SlipVerifyModal({
                 placeholder="ยิงได้เลย..."
                 autoComplete="off"
                 disabled={busy}
-                onFocus={() => setGunFocused(true)}
-                onBlur={() => setGunFocused(false)}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  e.preventDefault();
-                  // ใช้ค่าที่สะสมอยู่ในช่องเป็นหลัก — ไม่ขึ้นกับจังหวะการพิมพ์
-                  // จึงไม่มีทางขาดกลางแม้เครื่องจะสะดุด
-                  const code = (e.target as HTMLInputElement).value;
-                  (e.target as HTMLInputElement).value = "";
-                  runScanned(code);
-                }}
               />
               <div className="small text-muted mt-1">
                 ต้องเป็นหัวอ่านแบบ 2D เท่านั้น หัวอ่านเลเซอร์เส้นเดียวอ่าน QR ไม่ได้

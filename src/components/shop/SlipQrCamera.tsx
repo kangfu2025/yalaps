@@ -15,6 +15,14 @@ interface Props {
   mirror?: boolean;
   /** ส่งรายชื่อกล้องกลับไปให้หน้าจอทำตัวเลือก */
   onDevices?: (devices: CameraDevice[]) => void;
+  /**
+   * เปลี่ยนค่านี้ = เริ่มรอบสแกนใหม่
+   *
+   * จำเป็นมาก: ตัวกันยิงซ้ำ (firedRef) จะล็อกตัวเองหลังอ่านสำเร็จหนึ่งครั้ง
+   * ถ้าไม่มีอะไรมาปลดล็อก จอลูกค้าที่เปิดค้างไว้จะอ่าน QR ได้แค่ครั้งเดียว
+   * หลังเปิดหน้า แล้วเงียบไปเลยจนกว่าจะรีเฟรชหน้า
+   */
+  scanKey?: string | number | null;
 }
 
 type DetectorLike = {
@@ -36,6 +44,7 @@ export function SlipQrCamera({
   deviceId = null,
   mirror = false,
   onDevices,
+  scanKey = null,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [err, setErr] = useState<string>("");
@@ -57,9 +66,14 @@ export function SlipQrCamera({
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+  // ปลดล็อกตัวกันยิงซ้ำทุกครั้งที่เริ่มรอบใหม่ เปลี่ยนกล้อง
+  // หรือกลับมาจากสถานะหยุดชั่วคราว
   useEffect(() => {
     firedRef.current = false;
-  }, [deviceId]);
+  }, [deviceId, scanKey]);
+  useEffect(() => {
+    if (!paused) firedRef.current = false;
+  }, [paused]);
 
   const listDevices = useCallback(async () => {
     try {
