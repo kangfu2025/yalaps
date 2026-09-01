@@ -18,6 +18,7 @@ import { Route as McpRouteImport } from './routes/mcp'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as ApiAdminUsersRouteImport } from './routes/api/admin-users'
+import { Route as ApiLinePushRouteImport } from './routes/api/line-push'
 import { Route as ApiVerifySlipRouteImport } from './routes/api/verify-slip'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 
@@ -68,6 +69,11 @@ const ApiAdminUsersRoute = ApiAdminUsersRouteImport.update({
   path: '/api/admin-users',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLinePushRoute = ApiLinePushRouteImport.update({
+  id: '/api/line-push',
+  path: '/api/line-push',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVerifySlipRoute = ApiVerifySlipRouteImport.update({
   id: '/api/verify-slip',
   path: '/api/verify-slip',
@@ -90,6 +96,7 @@ export interface FileRoutesByFullPath {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/api/admin-users': typeof ApiAdminUsersRoute
+  '/api/line-push': typeof ApiLinePushRoute
   '/api/verify-slip': typeof ApiVerifySlipRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -103,6 +110,7 @@ export interface FileRoutesByTo {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/api/admin-users': typeof ApiAdminUsersRoute
+  '/api/line-push': typeof ApiLinePushRoute
   '/api/verify-slip': typeof ApiVerifySlipRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -117,6 +125,7 @@ export interface FileRoutesById {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/api/admin-users': typeof ApiAdminUsersRoute
+  '/api/line-push': typeof ApiLinePushRoute
   '/api/verify-slip': typeof ApiVerifySlipRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/api/admin-users'
+    | '/api/line-push'
     | '/api/verify-slip'
     | '/.mcp/invoke-tool/$tool'
   fileRoutesByTo: FileRoutesByTo
@@ -145,6 +155,7 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/api/admin-users'
+    | '/api/line-push'
     | '/api/verify-slip'
     | '/.mcp/invoke-tool/$tool'
   id:
@@ -158,6 +169,7 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/api/admin-users'
+    | '/api/line-push'
     | '/api/verify-slip'
     | '/.mcp/invoke-tool/$tool'
   fileRoutesById: FileRoutesById
@@ -172,6 +184,7 @@ export interface RootRouteChildren {
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiAdminUsersRoute: typeof ApiAdminUsersRoute
+  ApiLinePushRoute: typeof ApiLinePushRoute
   ApiVerifySlipRoute: typeof ApiVerifySlipRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -241,6 +254,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/line-push': {
+      id: '/api/line-push'
+      path: '/api/line-push'
+      fullPath: '/api/line-push'
+      preLoaderRoute: typeof ApiLinePushRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/verify-slip': {
       id: '/api/verify-slip'
       path: '/api/verify-slip'
@@ -269,6 +289,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   ApiAdminUsersRoute: ApiAdminUsersRoute,
+  ApiLinePushRoute: ApiLinePushRoute,
   ApiVerifySlipRoute: ApiVerifySlipRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
 }

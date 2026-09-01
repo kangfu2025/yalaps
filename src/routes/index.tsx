@@ -13,6 +13,7 @@ import { PcZonePanel } from "@/components/shop/PcZonePanel";
 import { CouponsPanel } from "@/components/shop/CouponsPanel";
 import { UsersPanel } from "@/components/shop/UsersPanel";
 import { MembersPanel } from "@/components/shop/MembersPanel";
+import { LineSettingsPanel } from "@/components/shop/LineSettingsPanel";
 import { ProductsPanel } from "@/components/shop/ProductsPanel";
 import { ProductSalePanel } from "@/components/shop/ProductSalePanel";
 import { ConfirmDialog } from "@/components/shop/ConfirmDialog";
@@ -43,6 +44,7 @@ const TAB_TITLE: Record<Tab, string> = {
   stock: "คลังสินค้า",
   report: "บัญชีและสรุปยอด",
   members: "สมาชิกและแต้มสะสม",
+  line: "แจ้งเตือน LINE",
   coupons: "คูปอง",
   res: "คิวจองล่วงหน้า",
   promo: "โปรโมชั่น",
@@ -205,6 +207,8 @@ function Index() {
           <ReservationsPanel />
         ) : effTab === "promo" ? (
           <PromotionPanel />
+        ) : effTab === "line" ? (
+          <LineSettingsPanel />
         ) : effTab === "users" ? (
           <UsersPanel />
         ) : (

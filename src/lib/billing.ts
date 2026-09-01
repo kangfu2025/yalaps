@@ -2,7 +2,9 @@ import { supabase, type Reservation, type Zone } from "./supabase";
 import { resetMachineToIdle } from "./machines";
 import { calcPrice } from "./priceEngine";
 import { getZonePrice, type Promotion } from "./promotions";
-import { awardPoints, redeemFreeHour, type Member } from "./members";
+import { awardPoints, redeemFreeHour, getMember, type Member } from "./members";
+import { notifyLine } from "./lineNotify";
+import { buildCheckoutMessage } from "./lineMessages";
 
 export interface CheckoutInput {
   machineId: string;
@@ -16,6 +18,8 @@ export interface CheckoutInput {
   member?: Member | null;
   /** ใช้แต้มสมาชิกแลกเล่นฟรี 1 ชั่วโมง */
   useFreeHour?: boolean;
+  /** ยอดสินค้าที่ปิดพร้อมบิลนี้ (ใช้แสดงในข้อความแจ้งเตือน) */
+  productTotal?: number;
 }
 
 export interface CheckoutSummary {
@@ -128,6 +132,31 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
   if (resErr) throw resErr;
 
   await resetMachineToIdle(input.machineId);
+
+  // แจ้งเตือน LINE — ห้ามให้ล้มเหลวแล้วกระทบการปิดบิล
+  void (async () => {
+    const member = memberId ? await getMember(memberId).catch(() => null) : null;
+    await notifyLine(
+      "checkout",
+      buildCheckoutMessage({
+        zone: r.zone,
+        machineNumber: r.machine_number,
+        customerName: r.customer_name,
+        hours: s.duration_hours,
+        machinePrice: s.machine_price,
+        foodPrice: s.food_price,
+        productPrice: input.productTotal ?? 0,
+        pointsDiscount: s.points_discount,
+        total: s.total_due + (input.productTotal ?? 0),
+        cash: s.advance_cash + input.finalCash,
+        transfer: s.advance_transfer + input.finalTransfer,
+        redeemedPoints: input.redeemedPoints ?? false,
+        memberName: member?.name ?? null,
+        pointsEarned,
+        pointsBalance: member?.points ?? null,
+      }),
+    );
+  })();
 
   return { pointsEarned, pointsSpent };
 }

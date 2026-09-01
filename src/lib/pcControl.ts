@@ -1,5 +1,7 @@
 import { supabase, type PcAgent, type PcCommand, type PcCommandType, type PcSession } from "./supabase";
-import { awardPoints } from "./members";
+import { awardPoints, getMember } from "./members";
+import { notifyLine } from "./lineNotify";
+import { buildStartMessage, buildExtendMessage, buildCheckoutMessage, buildCancelMessage } from "./lineMessages";
 
 /** ประวัติคำสั่งล่าสุดที่ส่งไปยังเครื่อง PC */
 export async function listRecentPcCommands(limit = 20): Promise<PcCommand[]> {
@@ -114,6 +116,29 @@ export async function startPcSession(opts: {
     .single();
   if (error) throw error;
   await supabase.from("machines").update({ status: "playing", updated_at: now.toISOString() }).eq("id", opts.machineId);
+
+  void (async () => {
+    const [{ data: m }, member] = await Promise.all([
+      supabase.from("machines").select("machine_number").eq("id", opts.machineId).maybeSingle(),
+      opts.memberId ? getMember(opts.memberId).catch(() => null) : Promise.resolve(null),
+    ]);
+    await notifyLine(
+      "start",
+      buildStartMessage({
+        zone: "pc",
+        machineNumber: (m as { machine_number?: number } | null)?.machine_number ?? 0,
+        customerName: opts.customerName ?? "ไม่ระบุชื่อ",
+        minutes: opts.minutes,
+        price,
+        cash: paidCash,
+        transfer: paidTransfer,
+        memberName: member?.name ?? null,
+        memberPoints: member?.points ?? null,
+        endAt: ends,
+      }),
+    );
+  })();
+
   return data as PcSession;
 }
 
@@ -138,6 +163,23 @@ export async function extendPcSession(
     paid_cash: Number(session.paid_cash ?? 0) + addCash,
     paid_transfer: Number(session.paid_transfer ?? 0) + addTransfer,
   }).eq("id", sessionId);
+
+  void (async () => {
+    const { data: m } = await supabase
+      .from("machines").select("machine_number").eq("id", session.machine_id).maybeSingle();
+    await notifyLine(
+      "extend",
+      buildExtendMessage({
+        zone: "pc",
+        machineNumber: (m as { machine_number?: number } | null)?.machine_number ?? 0,
+        customerName: session.customer_name ?? "ไม่ระบุชื่อ",
+        addMinutes: extraMinutes,
+        price: extraPrice,
+        cash: addCash,
+        transfer: addTransfer,
+      }),
+    );
+  })();
 }
 
 /** ผูก (หรือถอด) สมาชิกกับ session ที่กำลังเล่นอยู่ */
@@ -194,6 +236,34 @@ export async function endPcSession(
     updated_at: now.toISOString(),
   }).eq("id", session.machine_id);
 
+  void (async () => {
+    const [{ data: m }, member] = await Promise.all([
+      supabase.from("machines").select("machine_number").eq("id", session.machine_id).maybeSingle(),
+      memberId ? getMember(memberId).catch(() => null) : Promise.resolve(null),
+    ]);
+    await notifyLine(
+      "checkout",
+      buildCheckoutMessage({
+        zone: "pc",
+        machineNumber: (m as { machine_number?: number } | null)?.machine_number ?? 0,
+        customerName: session.customer_name ?? "ไม่ระบุชื่อ",
+        minutes: Number(session.minutes_purchased) || 0,
+        machinePrice: Number(session.price) || 0,
+        foodPrice: Number(session.food_amount ?? 0) + (opts.foodAmount ?? 0),
+        total:
+          (Number(session.price) || 0) +
+          Number(session.food_amount ?? 0) +
+          (opts.foodAmount ?? 0),
+        cash: Number(session.paid_cash ?? 0) + (opts.addCash ?? 0),
+        transfer: Number(session.paid_transfer ?? 0) + (opts.addTransfer ?? 0),
+        redeemedPoints: !!session.redeemed_points,
+        memberName: member?.name ?? null,
+        pointsEarned,
+        pointsBalance: member?.points ?? null,
+      }),
+    );
+  })();
+
   return { pointsEarned };
 }
 
@@ -231,4 +301,17 @@ export async function cancelPcSession(sessionId: string) {
 
   // สั่งล็อกหน้าจอกลับทันที
   await sendPcCommand(session.machine_id, "lock").catch(() => {});
+
+  void (async () => {
+    const { data: m } = await supabase
+      .from("machines").select("machine_number").eq("id", session.machine_id).maybeSingle();
+    await notifyLine(
+      "cancel",
+      buildCancelMessage({
+        zone: "pc",
+        machineNumber: (m as { machine_number?: number } | null)?.machine_number ?? 0,
+        customerName: session.customer_name ?? "ไม่ระบุชื่อ",
+      }),
+    );
+  })();
 }

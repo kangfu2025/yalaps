@@ -1,5 +1,8 @@
 import { supabase, type Reservation, type Zone } from "./supabase";
 import { markMachinePlaying, resetMachineToIdle } from "./machines";
+import { notifyLine } from "./lineNotify";
+import { buildStartMessage, buildExtendMessage, buildCancelMessage } from "./lineMessages";
+import { getMember } from "./members";
 
 export async function getActiveReservation(machineId: string): Promise<Reservation | null> {
   // ค้นจาก machines.current_reservation_id ก่อน เพื่อความถูกต้อง
@@ -61,6 +64,27 @@ export async function startSession(input: StartSessionInput): Promise<Reservatio
   if (error) throw error;
 
   await markMachinePlaying(input.machineId, data.id);
+
+  // แจ้งเตือน LINE — ห้ามให้ล้มเหลวแล้วกระทบการเปิดเครื่อง
+  void (async () => {
+    const member = input.memberId ? await getMember(input.memberId).catch(() => null) : null;
+    await notifyLine(
+      "start",
+      buildStartMessage({
+        zone: input.zone,
+        machineNumber: input.machineNumber,
+        customerName: input.customerName,
+        hours: input.baseHours,
+        price: input.advanceCash + input.advanceTransfer,
+        cash: input.advanceCash,
+        transfer: input.advanceTransfer,
+        memberName: member?.name ?? null,
+        memberPoints: member?.points ?? null,
+        endAt: endMs,
+      }),
+    );
+  })();
+
   return data as Reservation;
 }
 
@@ -78,6 +102,20 @@ export async function extendTime(reservation: Reservation, addHours: number, add
     })
     .eq("id", reservation.id);
   if (error) throw error;
+
+  void notifyLine(
+    "extend",
+    buildExtendMessage({
+      zone: reservation.zone,
+      machineNumber: reservation.machine_number,
+      customerName: reservation.customer_name,
+      addHours,
+      price: addCash + addTransfer,
+      cash: addCash,
+      transfer: addTransfer,
+      totalHours: Number(reservation.total_hours) + addHours,
+    }),
+  );
 }
 
 /** ผูก (หรือถอด) สมาชิกกับบิลที่กำลังเล่นอยู่ — ใช้ตอนลูกค้าเพิ่งแจ้งเบอร์ตอนเช็คบิล */
@@ -112,6 +150,18 @@ export async function cancelReservation(machineId: string, reservationId: string
     .eq("id", reservationId);
   if (error) throw error;
   await resetMachineToIdle(machineId);
+
+  const r = await getReservationById(reservationId).catch(() => null);
+  if (r) {
+    void notifyLine(
+      "cancel",
+      buildCancelMessage({
+        zone: r.zone,
+        machineNumber: r.machine_number,
+        customerName: r.customer_name,
+      }),
+    );
+  }
 }
 
 // ============== จองล่วงหน้า ==============

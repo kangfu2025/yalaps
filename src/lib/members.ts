@@ -162,10 +162,21 @@ export async function registerMember(
 }> {
   const { data, error } = await supabase.rpc("register_member", { p_name: name, p_phone: phone });
   if (error) throw error;
-  return data as {
+  const result = data as {
     status: "created" | "exists" | "invalid_phone" | "invalid_name";
     message: string;
+    name?: string;
+    phone?: string;
   };
+  // สมาชิกใหม่ -> แจ้งเตือน LINE (import แบบ dynamic กันวงจร import ระหว่างไฟล์)
+  if (result.status === "created") {
+    const [{ notifyLine }, { buildMemberMessage }] = await Promise.all([
+      import("./lineNotify"),
+      import("./lineMessages"),
+    ]);
+    void notifyLine("member", buildMemberMessage(result.name ?? name, result.phone ?? phone));
+  }
+  return result;
 }
 
 /**

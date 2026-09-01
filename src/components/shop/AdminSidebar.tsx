@@ -2,10 +2,10 @@ import { Link } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import {
   Gamepad2, Monitor, ShoppingCart, Package, BarChart3, Ticket, CalendarDays,
-  Tag, Image as ImageIcon, Users, LogOut, Shield, RefreshCw, PanelLeftClose, PanelLeftOpen, X, IdCard,
+  Tag, Image as ImageIcon, Users, LogOut, Shield, RefreshCw, PanelLeftClose, PanelLeftOpen, X, IdCard, MessageCircle,
 } from "lucide-react";
 
-export type Tab = "dash" | "pc" | "pos" | "stock" | "coupons" | "res" | "report" | "promo" | "screen" | "users" | "members";
+export type Tab = "dash" | "pc" | "pos" | "stock" | "coupons" | "res" | "report" | "promo" | "screen" | "users" | "members" | "line";
 
 type Item = { key: Tab; label: string; icon: LucideIcon; adminOnly?: boolean };
 
@@ -28,6 +28,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { key: "res", label: "คิวจองล่วงหน้า", icon: CalendarDays, adminOnly: true },
       { key: "promo", label: "โปรโมชั่น", icon: Tag, adminOnly: true },
       { key: "screen", label: "รูปหน้าจอ", icon: ImageIcon },
+      { key: "line", label: "แจ้งเตือน LINE", icon: MessageCircle, adminOnly: true },
       { key: "users", label: "ผู้ใช้งาน", icon: Users, adminOnly: true },
     ],
   },
