@@ -181,6 +181,41 @@ export const Route = createFileRoute("/api/verify-slip")({
           return json(400, { error: "ต้องส่ง payload จาก QR หรือรูปสลิปมาอย่างใดอย่างหนึ่ง" });
         }
 
+        // ตรวจก่อนส่ง: payload ที่เพี้ยนจากเครื่องสแกนจะโดน EasySlip ตีกลับ
+        // เป็น VALIDATION_ERROR แล้วเสียโควตาฟรี ๆ
+        if (body.payload) {
+          const p = body.payload.trim();
+          if (/^https?:\/\//i.test(p)) {
+            return json(200, {
+              ok: false,
+              status: "failed",
+              code: "PAYLOAD_IS_URL",
+              error:
+                "QR ที่สแกนเป็นลิงก์เว็บ ไม่ใช่ QR ตรวจสอบสลิป — สลิปบางแอปมี QR หลายอัน ให้ยิงอันที่เขียนว่าตรวจสอบสลิป",
+              scanned: p.slice(0, 200),
+            });
+          }
+          if (/[\u0E00-\u0E7F]/.test(p)) {
+            return json(200, {
+              ok: false,
+              status: "failed",
+              code: "THAI_KEYBOARD",
+              error:
+                "ข้อความที่อ่านได้เป็นภาษาไทย แปลว่าแป้นพิมพ์ของเครื่องตั้งเป็นภาษาไทยตอนยิง — กด Windows+Space สลับเป็น EN แล้วยิงใหม่",
+              scanned: p.slice(0, 200),
+            });
+          }
+          if (p.length < 20) {
+            return json(200, {
+              ok: false,
+              status: "failed",
+              code: "PAYLOAD_TOO_SHORT",
+              error: `ข้อความจากสลิปสั้นผิดปกติ (${p.length} ตัวอักษร) อาจอ่านได้ไม่ครบ ลองยิงใหม่`,
+              scanned: p,
+            });
+          }
+        }
+
         const apiKey = process.env.EASYSLIP_API_KEY;
         if (!apiKey) {
           return json(500, {
@@ -193,7 +228,7 @@ export const Route = createFileRoute("/api/verify-slip")({
         let slipJson: Record<string, unknown>;
         try {
           const payloadBody: Record<string, unknown> = body.payload
-            ? { payload: body.payload }
+            ? { payload: body.payload.trim() }
             : { image: String(body.imageBase64).replace(/^data:image\/\w+;base64,/, "") };
 
           const res = await fetch(EASYSLIP_ENDPOINT, {
@@ -222,6 +257,7 @@ export const Route = createFileRoute("/api/verify-slip")({
               retryable: /PENDING|pending/.test(c),
               error: ERROR_TH[c] ?? `ตรวจสลิปไม่สำเร็จ (${c})`,
               debug: slipJson,
+              scanned: body.payload ? body.payload.trim().slice(0, 300) : undefined,
             });
           }
         } catch (e) {

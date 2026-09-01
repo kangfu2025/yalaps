@@ -35,8 +35,27 @@ export function SlipVerifyModal({
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SlipVerifyResult | null>(null);
+  const [gunFocused, setGunFocused] = useState(true);
+  const [lastScan, setLastScan] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const gunRef = useRef<HTMLInputElement | null>(null);
+
+  /** ทางเข้าเดียวของทุกอย่างที่มาจากเครื่องสแกน */
+  function runScanned(code: string) {
+    // eslint-disable-next-line no-control-regex -- ตั้งใจตัดอักขระควบคุมที่เครื่องสแกนอาจแถมมา
+    const clean = code.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+    setLastScan(clean);
+    if (clean.length < 15) {
+      setResult({
+        ok: false,
+        status: "failed",
+        code: "TOO_SHORT",
+        error: `อ่านได้แค่ ${clean.length} ตัวอักษร ซึ่งสั้นเกินกว่าจะเป็น QR สลิป — ลองยิงใหม่`,
+      });
+      return;
+    }
+    run({ payload: clean });
+  }
 
   // โฟกัสช่องยิงไว้ตั้งแต่เปิด — เครื่องสแกนจะพิมพ์ลงช่องนี้ทันที
   useEffect(() => {
@@ -44,7 +63,10 @@ export function SlipVerifyModal({
   }, []);
 
   // เผื่อโฟกัสหลุดไปที่อื่น ก็ยังรับจากเครื่องสแกนได้
-  useBarcodeGun((code) => run({ payload: code }), { enabled: !scanning && !busy });
+  // ปิดตอนช่องยิงมีโฟกัส ไม่งั้นจะจับซ้ำกับ onKeyDown ของช่องแล้วยิงสองครั้ง
+  useBarcodeGun((code) => runScanned(code), {
+    enabled: !scanning && !busy && !gunFocused,
+  });
 
   async function run(input: { payload?: string; imageBase64?: string }) {
     if (busy) return;
@@ -119,17 +141,38 @@ export function SlipVerifyModal({
                 placeholder="ยิงได้เลย..."
                 autoComplete="off"
                 disabled={busy}
+                onFocus={() => setGunFocused(true)}
+                onBlur={() => setGunFocused(false)}
                 onKeyDown={(e) => {
                   if (e.key !== "Enter") return;
                   e.preventDefault();
-                  const code = (e.target as HTMLInputElement).value.trim();
+                  // ใช้ค่าที่สะสมอยู่ในช่องเป็นหลัก — ไม่ขึ้นกับจังหวะการพิมพ์
+                  // จึงไม่มีทางขาดกลางแม้เครื่องจะสะดุด
+                  const code = (e.target as HTMLInputElement).value;
                   (e.target as HTMLInputElement).value = "";
-                  if (code.length >= 15) run({ payload: code });
+                  runScanned(code);
                 }}
               />
               <div className="small text-muted mt-1">
                 ต้องเป็นหัวอ่านแบบ 2D เท่านั้น หัวอ่านเลเซอร์เส้นเดียวอ่าน QR ไม่ได้
               </div>
+              {lastScan && (
+                <details className="mt-2">
+                  <summary className="small text-muted" style={{ cursor: "pointer" }}>
+                    ข้อความที่สแกนได้ล่าสุด ({lastScan.length} ตัวอักษร)
+                  </summary>
+                  <textarea
+                    className="form-control form-control-sm mt-2 font-monospace"
+                    rows={3}
+                    readOnly
+                    value={lastScan}
+                    style={{ fontSize: ".7rem" }}
+                  />
+                  <div className="small text-muted mt-1">
+                    ถ้าเห็นเป็นภาษาไทยหรืออักขระแปลก ๆ แปลว่าแป้นพิมพ์ของเครื่องตั้งเป็นภาษาไทยอยู่
+                  </div>
+                </details>
+              )}
               <hr className="my-3" />
             </div>
           )}
@@ -237,6 +280,21 @@ function ResultBox({
           })}{" "}
           กับบิลยอด {formatBaht(result.previous.expected_amount)} บาท
         </div>
+      )}
+
+      {result.scanned && (
+        <details className="mt-2">
+          <summary className="small" style={{ cursor: "pointer" }}>
+            ข้อความที่อ่านได้จากสลิป ({result.scanned.length} ตัวอักษร)
+          </summary>
+          <textarea
+            className="form-control form-control-sm mt-2 font-monospace"
+            rows={3}
+            readOnly
+            value={result.scanned}
+            style={{ fontSize: ".7rem" }}
+          />
+        </details>
       )}
 
       <SlipDetail slip={slip} />

@@ -21,6 +21,8 @@ export interface SlipVerifyResult {
   retryable?: boolean;
   /** คำตอบดิบจาก EasySlip — ใช้ตอนมีปัญหาเท่านั้น */
   debug?: unknown;
+  /** ข้อความที่อ่านได้จากสลิปจริง ๆ ที่ส่งไปตรวจ — ใช้ไล่ปัญหาเครื่องสแกน */
+  scanned?: string;
   previous?: {
     created_at: string;
     expected_amount: number;
