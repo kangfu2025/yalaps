@@ -34,3 +34,8 @@ dist-ssr
 # .NET agent build output
 pc-agent/**/bin/
 pc-agent/**/obj/
+
+# ไฟล์ความลับ ห้ามขึ้น git เด็ดขาด
+.env
+.env.*
+!.env.example
