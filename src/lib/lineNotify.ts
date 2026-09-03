@@ -1,4 +1,7 @@
 import { supabase } from "./supabase";
+import { getTodayRevenue } from "./dailyTotal";
+import { DIVIDER, stamp } from "./lineMessages";
+import { formatBaht } from "./priceEngine";
 
 export type LineEvent = "start" | "extend" | "checkout" | "cancel" | "member" | "test";
 
@@ -66,6 +69,25 @@ export interface LinePushResult {
   error?: string;
 }
 
+/**
+ * ท้ายข้อความที่เหมือนกันทุกเหตุการณ์ — ยอดขายวันนี้ + เวลาที่ส่ง
+ *
+ * ดึงยอดตอนจะส่งจริง ไม่ใช่ตอนประกอบข้อความ เพื่อให้เป็นยอดหลังบันทึกบิลนี้แล้ว
+ * ถ้าอ่านยอดไม่ได้ก็ข้ามบรรทัดนั้นไป ห้ามทำให้การแจ้งเตือนล้ม
+ */
+async function withFooter(message: string): Promise<string> {
+  let total: number | null = null;
+  try {
+    total = await getTodayRevenue();
+  } catch (e) {
+    console.warn("[line] อ่านยอดวันนี้ไม่ได้:", e);
+  }
+  const lines = [message, DIVIDER];
+  if (total != null) lines.push(`💰 ยอดวันนี้ : ${formatBaht(total)} บาท`);
+  lines.push(`🕒 ${stamp()}`);
+  return lines.join("\n");
+}
+
 /** ส่งข้อความจริง — ผ่านเซิร์ฟเวอร์เพราะ token อยู่ฝั่งนั้น */
 async function push(event: LineEvent, message: string): Promise<LinePushResult> {
   const { data: sess } = await supabase.auth.getSession();
@@ -95,7 +117,7 @@ export async function notifyLine(event: LineEvent, message: string): Promise<voi
     const cfg = await getLineConfig();
     if (!cfg?.enabled || !cfg.target_id) return;
     if (event !== "test" && cfg.events?.[event] === false) return;
-    await push(event, message);
+    await push(event, await withFooter(message));
   } catch (e) {
     console.warn("[line] notify failed:", e);
   }
@@ -103,5 +125,33 @@ export async function notifyLine(event: LineEvent, message: string): Promise<voi
 
 /** ส่งข้อความทดสอบจากหน้าตั้งค่า — อันนี้ต้องรู้ผลจริง จึงไม่กลืน error */
 export async function sendLineTest(message: string): Promise<LinePushResult> {
-  return push("test", message);
+  return push("test", await withFooter(message));
+}
+
+export interface LineStatus {
+  hasToken: boolean;
+  ok: boolean;
+  httpStatus?: number;
+  error?: string;
+  hints?: string[];
+  shape?: { length: number; preview: string; looksJwt: boolean; hasWhitespace: boolean };
+  bot?: { displayName?: string; basicId?: string; userId?: string; premiumId?: string };
+  quota?: { type?: string; value?: number };
+  debug?: unknown;
+}
+
+/** ตรวจว่า Channel access token ใช้ได้ไหม และผูกกับ OA ตัวไหน (ไม่กินโควตาข้อความ) */
+export async function checkLineStatus(): Promise<LineStatus> {
+  const { data: sess } = await supabase.auth.getSession();
+  const token = sess.session?.access_token;
+  if (!token) return { hasToken: false, ok: false, error: "กรุณาเข้าสู่ระบบใหม่" };
+
+  const res = await fetch("/api/line-status", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  try {
+    return (await res.json()) as LineStatus;
+  } catch {
+    return { hasToken: false, ok: false, error: `ตรวจไม่สำเร็จ (HTTP ${res.status})` };
+  }
 }

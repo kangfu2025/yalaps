@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
-import { MessageCircle, Send, Save, AlertTriangle, CheckCircle2, Gauge } from "lucide-react";
+import {
+  MessageCircle,
+  Send,
+  Save,
+  AlertTriangle,
+  CheckCircle2,
+  Gauge,
+  Activity,
+} from "lucide-react";
 import {
   getLineConfig,
   saveLineConfig,
   sendLineTest,
   lineUsageThisMonth,
+  checkLineStatus,
   LINE_EVENT_LABELS,
   type LineConfig,
   type LineEvent,
+  type LineStatus,
 } from "@/lib/lineNotify";
 import { buildTestMessage } from "@/lib/lineMessages";
 
@@ -21,6 +31,8 @@ export function LineSettingsPanel() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [usage, setUsage] = useState<number | null>(null);
   const [notReady, setNotReady] = useState(false);
+  const [status, setStatus] = useState<LineStatus | null>(null);
+  const [checking, setChecking] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -161,6 +173,22 @@ export function LineSettingsPanel() {
 
       <div className="d-flex align-items-center gap-3 flex-wrap mb-3">
         <button
+          className="btn btn-outline-primary d-inline-flex align-items-center gap-1"
+          disabled={checking}
+          onClick={async () => {
+            setChecking(true);
+            setStatus(null);
+            setMsg(null);
+            try {
+              setStatus(await checkLineStatus());
+            } finally {
+              setChecking(false);
+            }
+          }}
+        >
+          <Activity size={15} /> {checking ? "กำลังตรวจ..." : "ตรวจโทเคน"}
+        </button>
+        <button
           className="btn btn-primary d-inline-flex align-items-center gap-1"
           onClick={test}
           disabled={busy}
@@ -176,6 +204,8 @@ export function LineSettingsPanel() {
           </span>
         )}
       </div>
+
+      {status && <StatusBox status={status} />}
 
       {msg && (
         <div
@@ -195,6 +225,50 @@ export function LineSettingsPanel() {
           แล้วรีสตาร์ตเซิร์ฟเวอร์ (หรือตั้งใน environment variables ของโฮสต์)
         </div>
       </div>
+    </div>
+  );
+}
+
+/** ผลการตรวจโทเคน — บอกให้ชัดว่าโทเคนผูกกับ OA ตัวไหน */
+function StatusBox({ status }: { status: LineStatus }) {
+  if (status.ok) {
+    return (
+      <div className="alert alert-success py-2 small">
+        <div className="fw-bold d-inline-flex align-items-center gap-2 mb-1">
+          <CheckCircle2 size={16} /> โทเคนใช้ได้
+        </div>
+        <div>
+          ผูกกับ Official Account: <b>{status.bot?.displayName ?? "-"}</b>
+          {status.bot?.basicId ? ` (${status.bot.basicId})` : ""}
+        </div>
+        {status.quota?.value != null && <div>โควตาเดือนนี้: {status.quota.value} ข้อความ</div>}
+        <div className="text-muted mt-1">
+          ถ้าส่งทดสอบแล้วยังไม่เข้า แปลว่าปลายทาง (User ID) ผิด หรือยังไม่ได้เพิ่ม OA นี้เป็นเพื่อน
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="alert alert-danger py-2 small">
+      <div className="fw-bold d-inline-flex align-items-center gap-2 mb-1">
+        <AlertTriangle size={16} /> {status.error}
+        {status.httpStatus ? ` (HTTP ${status.httpStatus})` : ""}
+      </div>
+      {status.shape && (
+        <div className="text-muted">
+          โทเคนที่เซิร์ฟเวอร์อ่านได้: ยาว <b>{status.shape.length}</b> ตัวอักษร ·{" "}
+          {status.shape.preview}
+          {status.shape.hasWhitespace && " · มีช่องว่างปนอยู่"}
+        </div>
+      )}
+      {status.hints && status.hints.length > 0 && (
+        <ul className="mt-2 mb-0 ps-3">
+          {status.hints.map((h) => (
+            <li key={h}>{h}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

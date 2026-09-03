@@ -11,7 +11,10 @@ export function zoneLabel(zone: Zone): string {
   return ZONE_LABEL[zone] ?? String(zone);
 }
 
-function clock(input?: string | number | Date | null): string {
+/** เส้นคั่น — ยาวพอดีจอมือถือ ไม่ตกบรรทัด */
+export const DIVIDER = "━━━━━━━━━━━━━━";
+
+export function clock(input?: string | number | Date | null): string {
   if (!input) return "—";
   const d = input instanceof Date ? input : new Date(input);
   if (isNaN(d.getTime())) return "—";
@@ -23,30 +26,59 @@ function clock(input?: string | number | Date | null): string {
   });
 }
 
-function stamp(): string {
+export function stamp(): string {
   return new Date().toLocaleString("th-TH", {
     timeZone: "Asia/Bangkok",
     day: "2-digit",
     month: "short",
+    year: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
 }
 
-/** ตัดบรรทัดที่ไม่มีค่าออก จะได้ไม่มีบรรทัดว่างเปล่าใน LINE */
-function lines(...rows: (string | null | undefined | false)[]): string {
-  return rows.filter(Boolean).join("\n");
+type Row = [label: string, value: string | null | undefined | false];
+
+/**
+ * ประกอบข้อความให้หน้าตาเหมือนกันทุกเหตุการณ์
+ *
+ * LINE ใช้ฟอนต์ไม่คงความกว้าง การเคาะช่องว่างให้ตรงคอลัมน์จึงไม่มีทางตรง
+ * ใช้รูปแบบ "ป้าย : ค่า" บรรทัดต่อบรรทัดแทน อ่านง่ายและไม่เพี้ยนทุกเครื่อง
+ */
+function compose(title: string, rows: Row[]): string {
+  const body = rows
+    .filter(([, v]) => v !== null && v !== undefined && v !== false && v !== "")
+    .map(([label, v]) => `${label} : ${v}`)
+    .join("\n");
+  return `${title}\n${DIVIDER}\n${body}`;
 }
 
-function payLabel(cash: number, transfer: number): string {
+/** ข้อความบอกวิธีชำระเงินให้อ่านรู้เรื่องในบรรทัดเดียว */
+function payText(cash: number, transfer: number, redeemedPoints = false): string {
+  if (redeemedPoints) return "🎁 แลกแต้ม (ไม่คิดเงิน)";
   if (cash > 0 && transfer > 0) {
-    return `💵 เงินสด ${formatBaht(cash)} · 📱 โอน ${formatBaht(transfer)}`;
+    return `ผสม — เงินสด ${formatBaht(cash)} + โอน ${formatBaht(transfer)} บาท`;
   }
-  if (transfer > 0) return `📱 โอน ${formatBaht(transfer)} บาท`;
-  if (cash > 0) return `💵 เงินสด ${formatBaht(cash)} บาท`;
-  return "📝 ค้างจ่าย";
+  if (transfer > 0) return `โอน ${formatBaht(transfer)} บาท`;
+  if (cash > 0) return `เงินสด ${formatBaht(cash)} บาท`;
+  return "ค้างจ่าย";
 }
+
+function durationText(zone: Zone, hours?: number, minutes?: number): string {
+  if (zone === "pc") {
+    const m = minutes ?? 0;
+    return m >= 60 ? `${(m / 60).toFixed(1)} ชม. (${m} นาที)` : `${m} นาที`;
+  }
+  return `${formatHours(hours ?? 0)} ชม.`;
+}
+
+function pointsText(points?: number | null, earned?: number): string | null {
+  if (points == null) return null;
+  return earned && earned > 0 ? `${points} แต้ม (+${earned} จากบิลนี้)` : `${points} แต้ม`;
+}
+
+// ================= เปิดเครื่อง =================
 
 export interface StartMsg {
   zone: Zone;
@@ -63,21 +95,16 @@ export interface StartMsg {
 }
 
 export function buildStartMessage(m: StartMsg): string {
-  const duration =
-    m.zone === "pc" ? `⏱️ ${m.minutes ?? 0} นาที` : `⏱️ ${formatHours(m.hours ?? 0)} ชม.`;
-  return lines(
-    "🎮 เปิดเครื่อง",
-    `${zoneLabel(m.zone)} เครื่อง ${m.machineNumber}`,
-    `👤 ${m.customerName || "ไม่ระบุชื่อ"}`,
-    `${duration}  (${clock(new Date())} - ${clock(m.endAt)})`,
-    `💰 ${formatBaht(m.price)} บาท`,
-    payLabel(m.cash, m.transfer),
-    m.memberName
-      ? `🎫 สมาชิก ${m.memberName}${m.memberPoints != null ? ` · ${m.memberPoints} แต้ม` : ""}`
-      : null,
-    `🕒 ${stamp()}`,
-  );
+  return compose(`🎮 เปิดเครื่อง — ${zoneLabel(m.zone)} เครื่อง ${m.machineNumber}`, [
+    ["👤 ลูกค้า", m.customerName || "ไม่ระบุชื่อ"],
+    ["💳 รูปแบบชำระ", payText(m.cash, m.transfer)],
+    ["⏱️ เวลาเล่น", durationText(m.zone, m.hours, m.minutes)],
+    ["🕐 ถึงเวลา", clock(m.endAt)],
+    ["🎫 แต้มสะสม", m.memberName ? `${m.memberName} · ${pointsText(m.memberPoints)}` : null],
+  ]);
 }
+
+// ================= ต่อเวลา =================
 
 export interface ExtendMsg {
   zone: Zone;
@@ -92,21 +119,15 @@ export interface ExtendMsg {
 }
 
 export function buildExtendMessage(m: ExtendMsg): string {
-  const added =
-    m.zone === "pc"
-      ? `➕ ต่อเวลา ${m.addMinutes ?? 0} นาที`
-      : `➕ ต่อเวลา ${formatHours(m.addHours ?? 0)} ชม.`;
-  return lines(
-    "⏳ ต่อเวลา",
-    `${zoneLabel(m.zone)} เครื่อง ${m.machineNumber}`,
-    `👤 ${m.customerName || "ไม่ระบุชื่อ"}`,
-    added,
-    m.totalHours != null ? `⏱️ รวมเป็น ${formatHours(m.totalHours)} ชม.` : null,
-    `💰 ${formatBaht(m.price)} บาท`,
-    payLabel(m.cash, m.transfer),
-    `🕒 ${stamp()}`,
-  );
+  return compose(`⏳ ต่อเวลา — ${zoneLabel(m.zone)} เครื่อง ${m.machineNumber}`, [
+    ["👤 ลูกค้า", m.customerName || "ไม่ระบุชื่อ"],
+    ["💳 รูปแบบชำระ", payText(m.cash, m.transfer)],
+    ["➕ ต่อเพิ่ม", durationText(m.zone, m.addHours, m.addMinutes)],
+    ["⏱️ เวลาเล่นรวม", m.totalHours != null ? `${formatHours(m.totalHours)} ชม.` : null],
+  ]);
 }
+
+// ================= ปิดบิล =================
 
 export interface CheckoutMsg {
   zone: Zone;
@@ -128,27 +149,25 @@ export interface CheckoutMsg {
 }
 
 export function buildCheckoutMessage(m: CheckoutMsg): string {
-  const duration =
-    m.zone === "pc" ? `⏱️ ${m.minutes ?? 0} นาที` : `⏱️ รวม ${formatHours(m.hours ?? 0)} ชม.`;
-  const parts: string[] = [`ค่าเครื่อง ${formatBaht(m.machinePrice)}`];
-  if ((m.foodPrice ?? 0) > 0) parts.push(`อาหาร ${formatBaht(m.foodPrice ?? 0)}`);
-  if ((m.productPrice ?? 0) > 0) parts.push(`สินค้า ${formatBaht(m.productPrice ?? 0)}`);
-  if ((m.pointsDiscount ?? 0) > 0) parts.push(`ส่วนลดแต้ม -${formatBaht(m.pointsDiscount ?? 0)}`);
+  const items: string[] = [`ค่าเครื่อง ${formatBaht(m.machinePrice)}`];
+  if ((m.foodPrice ?? 0) > 0) items.push(`อาหาร ${formatBaht(m.foodPrice ?? 0)}`);
+  if ((m.productPrice ?? 0) > 0) items.push(`สินค้า ${formatBaht(m.productPrice ?? 0)}`);
+  if ((m.pointsDiscount ?? 0) > 0) items.push(`ลดแต้ม -${formatBaht(m.pointsDiscount ?? 0)}`);
 
-  return lines(
-    "🧾 ปิดบิล",
-    `${zoneLabel(m.zone)} เครื่อง ${m.machineNumber}`,
-    `👤 ${m.customerName || "ไม่ระบุชื่อ"}`,
-    duration,
-    `📋 ${parts.join(" · ")}`,
-    `💰 รวมสุทธิ ${formatBaht(m.total)} บาท`,
-    m.redeemedPoints ? "🎁 ชำระด้วยการแลกแต้ม" : payLabel(m.cash, m.transfer),
-    m.memberName
-      ? `🎫 ${m.memberName}${(m.pointsEarned ?? 0) > 0 ? ` · ได้ ${m.pointsEarned} แต้ม` : ""}${m.pointsBalance != null ? ` (รวม ${m.pointsBalance})` : ""}`
-      : null,
-    `🕒 ${stamp()}`,
-  );
+  return compose(`🧾 ปิดบิล — ${zoneLabel(m.zone)} เครื่อง ${m.machineNumber}`, [
+    ["👤 ลูกค้า", m.customerName || "ไม่ระบุชื่อ"],
+    ["💳 รูปแบบชำระ", payText(m.cash, m.transfer, m.redeemedPoints)],
+    ["⏱️ เวลาเล่น", durationText(m.zone, m.hours, m.minutes)],
+    ["📋 รายการ", items.join(" · ")],
+    ["🧮 ยอดบิลนี้", `${formatBaht(m.total)} บาท`],
+    [
+      "🎫 แต้มสะสม",
+      m.memberName ? `${m.memberName} · ${pointsText(m.pointsBalance, m.pointsEarned)}` : null,
+    ],
+  ]);
 }
+
+// ================= ยกเลิกบิล =================
 
 export interface CancelMsg {
   zone: Zone;
@@ -158,25 +177,24 @@ export interface CancelMsg {
 }
 
 export function buildCancelMessage(m: CancelMsg): string {
-  return lines(
-    "❌ ยกเลิกบิล",
-    `${zoneLabel(m.zone)} เครื่อง ${m.machineNumber}`,
-    `👤 ${m.customerName || "ไม่ระบุชื่อ"}`,
-    m.reason ? `📝 ${m.reason}` : null,
-    "⚠️ ยอดนี้ไม่ถูกนับเป็นรายได้",
-    `🕒 ${stamp()}`,
-  );
+  return compose(`❌ ยกเลิกบิล — ${zoneLabel(m.zone)} เครื่อง ${m.machineNumber}`, [
+    ["👤 ลูกค้า", m.customerName || "ไม่ระบุชื่อ"],
+    ["📝 หมายเหตุ", m.reason ?? "ยอดนี้ไม่ถูกนับเป็นรายได้"],
+  ]);
 }
 
+// ================= สมาชิกใหม่ =================
+
 export function buildMemberMessage(name: string, phone: string): string {
-  return lines("🎫 สมาชิกใหม่", `👤 ${name}`, `📞 ${phone}`, `🕒 ${stamp()}`);
+  return compose("🎫 สมาชิกใหม่", [
+    ["👤 ชื่อ", name],
+    ["📞 เบอร์โทร", phone],
+  ]);
 }
 
 export function buildTestMessage(shopName = "YALA PLAYSTATION"): string {
-  return lines(
-    "✅ ทดสอบการแจ้งเตือน",
-    `ร้าน ${shopName}`,
-    "ถ้าเห็นข้อความนี้แปลว่าตั้งค่าถูกต้องแล้ว",
-    `🕒 ${stamp()}`,
-  );
+  return compose("✅ ทดสอบการแจ้งเตือน", [
+    ["🏪 ร้าน", shopName],
+    ["📶 สถานะ", "เชื่อมต่อเรียบร้อย พร้อมใช้งาน"],
+  ]);
 }

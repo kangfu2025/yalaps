@@ -1,12 +1,13 @@
 # ============================================================
 # Set LINE Channel access token into .env
 #
-# NOTE: this file is intentionally ASCII-only. Windows PowerShell 5.1
-# reads .ps1 files using the system ANSI codepage (874 on Thai Windows),
-# so any Thai text here would be mangled and break string quoting.
+# NOTE: ASCII-only on purpose. Windows PowerShell 5.1 reads .ps1 with the
+# system ANSI codepage (874 on Thai Windows), so Thai text here would be
+# mangled and break string quoting.
 #
 # Usage:
-#   1. Copy the Channel access token from LINE Developers Console
+#   1. In LINE Developers Console > Messaging API, click the copy icon
+#      next to "Channel access token (long-lived)"
 #   2. powershell -ExecutionPolicy Bypass -File .\set-line-token.ps1
 #   3. Restart: npm run dev
 # ============================================================
@@ -18,25 +19,58 @@ if (-not (Test-Path $envPath)) {
     exit 1
 }
 
-$token = ""
-try { $token = (Get-Clipboard -Raw) } catch {}
-if ($token) { $token = ($token -replace "`r", "" -replace "`n", "").Trim() }
-
-if ([string]::IsNullOrWhiteSpace($token) -or $token.Length -lt 50) {
-    Write-Host "Could not read a token from the clipboard." -ForegroundColor Yellow
-    $token = (Read-Host "Paste the token here and press Enter").Trim()
+function Test-LineToken([string]$value) {
+    # A LINE long-lived channel access token is base64-ish: 150-300 chars,
+    # only A-Z a-z 0-9 + / = _ - and no whitespace at all.
+    if ([string]::IsNullOrWhiteSpace($value)) { return "empty" }
+    if ($value -match '\s')                   { return "has spaces or line breaks" }
+    if ($value -match '\.ps1|powershell|Bypass|^cd ') { return "this looks like a command line, not a token" }
+    if ($value.Length -lt 100)                { return "too short ($($value.Length) chars) - a real token is 150-300" }
+    if ($value.Length -gt 400)                { return "too long ($($value.Length) chars)" }
+    if ($value -notmatch '^[A-Za-z0-9+/=_\-\.]+$') { return "contains characters a token never has" }
+    return $null   # ok
 }
 
-if ([string]::IsNullOrWhiteSpace($token)) {
-    Write-Host "ERROR: no token entered - cancelled." -ForegroundColor Red
-    exit 1
+function Get-TokenFromUser {
+    $clip = ""
+    try { $clip = (Get-Clipboard -Raw) } catch {}
+    if ($clip) { $clip = ($clip -replace "`r", "" -replace "`n", "").Trim() }
+
+    $problem = Test-LineToken $clip
+    if (-not $problem) {
+        Write-Host "Found a valid-looking token in the clipboard." -ForegroundColor Green
+        return $clip
+    }
+
+    if ($clip) {
+        $show = if ($clip.Length -gt 24) { $clip.Substring(0,20) + "..." } else { $clip }
+        Write-Host ""
+        Write-Host "Clipboard does NOT contain a LINE token." -ForegroundColor Yellow
+        Write-Host "  found  : $show"
+        Write-Host "  reason : $problem"
+    } else {
+        Write-Host "Clipboard is empty." -ForegroundColor Yellow
+    }
+
+    Write-Host ""
+    Write-Host "Go to LINE Developers Console > your Messaging API channel," -ForegroundColor Cyan
+    Write-Host "click the COPY icon next to 'Channel access token (long-lived)'," -ForegroundColor Cyan
+    Write-Host "then paste it below (right-click pastes in PowerShell)." -ForegroundColor Cyan
+    Write-Host ""
+
+    for ($i = 1; $i -le 3; $i++) {
+        $typed = (Read-Host "Paste token (attempt $i of 3)").Trim()
+        $p = Test-LineToken $typed
+        if (-not $p) { return $typed }
+        Write-Host "  rejected: $p" -ForegroundColor Red
+    }
+    return $null
 }
 
-$token = $token -replace '\s', ''
-
-if ($token.Length -lt 50) {
-    Write-Host "ERROR: token looks too short ($($token.Length) chars)." -ForegroundColor Red
-    Write-Host "A Channel access token is 150+ chars. Channel SECRET is ~32 chars - wrong one." -ForegroundColor Yellow
+$token = Get-TokenFromUser
+if (-not $token) {
+    Write-Host ""
+    Write-Host "No valid token entered - nothing was changed." -ForegroundColor Red
     exit 1
 }
 
