@@ -18,6 +18,7 @@ import {
 } from "@/lib/slipVerify";
 import { formatBaht } from "@/lib/priceEngine";
 import { useBarcodeGun } from "@/hooks/useBarcodeGun";
+import { isCompleteSlipPayload } from "@/lib/slipPayload";
 
 interface Props {
   expectedAmount: number;
@@ -88,7 +89,7 @@ export function SlipVerifyModal({
       if (gunRef.current) gunRef.current.value = "";
       runScanned(code);
     },
-    { enabled: !scanning && !busy },
+    { enabled: !scanning && !busy, looksComplete: isCompleteSlipPayload },
   );
 
   async function run(input: { payload?: string; imageBase64?: string }) {
@@ -356,8 +357,29 @@ function ResultBox({
         </div>
       )}
 
+      {result.scanKind && (
+        <div className="small mt-2">
+          🔎 QR ที่ยิงมาคือ: <b>{result.scanKind.label}</b>
+          {result.scanKind.transRef && <> · เลขอ้างอิง {result.scanKind.transRef}</>}
+          {result.scanKind.sendingBank && <> · ธนาคาร {result.scanKind.sendingBank}</>}
+          {typeof result.scanKind.amount === "number" && (
+            <> · ระบุยอด {formatBaht(result.scanKind.amount)} บาท</>
+          )}
+          {result.scanKind.crcOk === false && (
+            <span className="text-danger"> · เลขตรวจสอบท้าย QR ไม่ตรง (อ่านมาเพี้ยน)</span>
+          )}
+          {(result.scanKind.repeated ?? 1) > 1 && (
+            <div className="text-warning-emphasis">
+              ⚠️ เครื่องอ่านยิงซ้ำ {result.scanKind.repeated} รอบติดกัน —
+              ระบบตัดให้เหลือรอบเดียวแล้ว ถ้าเจอบ่อยให้ปิดโหมดยิงต่อเนื่องที่ตัวเครื่องอ่าน
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* เปิดค้างไว้เลยตอนตรวจไม่ผ่าน — ข้อความนี้คือสิ่งเดียวที่บอกได้ว่ายิงอะไรมา */}
       {result.scanned && (
-        <details className="mt-2">
+        <details className="mt-2" open={!result.ok}>
           <summary className="small" style={{ cursor: "pointer" }}>
             ข้อความที่อ่านได้จากสลิป ({result.scanned.length} ตัวอักษร)
           </summary>
@@ -367,7 +389,15 @@ function ResultBox({
             readOnly
             value={result.scanned}
             style={{ fontSize: ".7rem" }}
+            onFocus={(e) => e.currentTarget.select()}
           />
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-secondary mt-1"
+            onClick={() => navigator.clipboard?.writeText(result.scanned ?? "").catch(() => {})}
+          >
+            คัดลอกข้อความนี้
+          </button>
         </details>
       )}
 

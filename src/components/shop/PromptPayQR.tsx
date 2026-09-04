@@ -6,6 +6,7 @@ import { SlipVerifyModal } from "./SlipVerifyModal";
 import { startSlipScan, cancelSlipScan, watchSlipScan } from "@/lib/slipScan";
 import { verifySlip } from "@/lib/slipVerify";
 import { useBarcodeGun } from "@/hooks/useBarcodeGun";
+import { isCompleteSlipPayload } from "@/lib/slipPayload";
 import { clearDisplay, showSlipResultScreen } from "@/lib/customerDisplay";
 import type { SlipVerifyResult } from "@/lib/slipVerify";
 
@@ -89,7 +90,7 @@ export function PromptPayQR({
       stopScan().catch(() => {});
       runDirect(code);
     },
-    { enabled: phase === "waiting" },
+    { enabled: phase === "waiting", looksComplete: isCompleteSlipPayload },
   );
 
   if (amount <= 0) return null;

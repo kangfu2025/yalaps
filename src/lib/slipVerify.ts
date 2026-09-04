@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import type { SlipPayloadCheck } from "./slipPayload";
 
 export interface SlipInfo {
   transRef: string | null;
@@ -23,6 +24,8 @@ export interface SlipVerifyResult {
   debug?: unknown;
   /** ข้อความที่อ่านได้จากสลิปจริง ๆ ที่ส่งไปตรวจ — ใช้ไล่ปัญหาเครื่องสแกน */
   scanned?: string;
+  /** ผลการแยกแยะว่า QR ที่ยิงมาเป็นอะไร (ดู slipPayload.ts) */
+  scanKind?: SlipPayloadCheck | null;
   /** เวลาที่รอ EasySlip (มิลลิวินาที) */
   latencyMs?: number;
   previous?: {

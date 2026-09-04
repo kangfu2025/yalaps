@@ -77,17 +77,30 @@ export function useBarcodeGun(
     maxGapMs?: number;
     /** เครื่องสแกนบางรุ่นไม่ส่ง Enter ปิดท้าย — ถ้าเงียบเกินนี้ให้ถือว่าจบ */
     idleFlushMs?: number;
+    /**
+     * บอกว่าข้อความที่สะสมมาครบทั้งชุดแล้ว — ครบเมื่อไหร่ยิงทันที
+     *
+     * จำเป็นมาก เพราะเครื่องอ่านหลายรุ่นยิงโค้ดเดิมซ้ำรอบสองห่างกันไม่ถึง
+     * ครึ่งวินาที ถ้ามัวรอจังหวะเงียบ ข้อความรอบสองจะไหลมาต่อท้ายจนกลายเป็น
+     * ชุดซ้ำสองเท่า (สลิป 59 ตัว -> 118 ตัว) แล้วปลายทางตีกลับว่าผิดรูปแบบ
+     */
+    looksComplete?: (buf: string) => boolean;
   } = {},
 ) {
   const { enabled = true, minLength = 15, maxGapMs = 400, idleFlushMs = 350 } = opts;
   const bufRef = useRef("");
   const lastRef = useRef(0);
   const cbRef = useRef(onScan);
+  const completeRef = useRef(opts.looksComplete);
   const flushRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     cbRef.current = onScan;
   }, [onScan]);
+
+  useEffect(() => {
+    completeRef.current = opts.looksComplete;
+  }, [opts.looksComplete]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -117,6 +130,13 @@ export function useBarcodeGun(
       const ch = keyToAscii(e);
       if (ch === null) return;
       bufRef.current += ch;
+
+      // ครบทั้งชุดแล้วยิงเลย ไม่รอ Enter ไม่รอจังหวะเงียบ
+      // กันข้อความจากการยิงรอบถัดไปไหลมาต่อท้าย
+      if (bufRef.current.length >= minLength && completeRef.current?.(bufRef.current)) {
+        fire();
+        return;
+      }
 
       // กันเครื่องที่ไม่ส่ง Enter: เงียบครบเวลาแล้วยิงเลย
       flushRef.current = setTimeout(fire, idleFlushMs);

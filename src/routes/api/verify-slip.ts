@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
+import { classifySlipPayload, type SlipPayloadCheck } from "@/lib/slipPayload";
 
 /**
  * ตรวจสลิปโอนเงินผ่าน EasySlip
@@ -184,37 +185,23 @@ export const Route = createFileRoute("/api/verify-slip")({
           return json(400, { error: "ต้องส่ง payload จาก QR หรือรูปสลิปมาอย่างใดอย่างหนึ่ง" });
         }
 
-        // ตรวจก่อนส่ง: payload ที่เพี้ยนจากเครื่องสแกนจะโดน EasySlip ตีกลับ
-        // เป็น VALIDATION_ERROR แล้วเสียโควตาฟรี ๆ
+        // ตรวจก่อนส่ง: QR ผิดอันจะโดน EasySlip ตีกลับเป็น VALIDATION_ERROR
+        // แล้วเสียโควตาฟรี ๆ (แพ็กที่ใช้มี 250 สลิป/เดือน)
+        // ตัวแยกแยะจะบล็อกเฉพาะกรณีที่มั่นใจว่ายิงผิดอันเท่านั้น
+        // อย่างอื่นปล่อยผ่านให้ EasySlip ตัดสิน จะได้ไม่บล็อกสลิปจริงเพราะเดาผิด
+        let scanKind: SlipPayloadCheck | null = null;
         if (body.payload) {
           const p = body.payload.trim();
-          if (/^https?:\/\//i.test(p)) {
+          scanKind = classifySlipPayload(p);
+          console.log("[verify-slip] scanKind", p.length, JSON.stringify(scanKind));
+          if (!scanKind.sendable) {
             return json(200, {
               ok: false,
               status: "failed",
-              code: "PAYLOAD_IS_URL",
-              error:
-                "QR ที่สแกนเป็นลิงก์เว็บ ไม่ใช่ QR ตรวจสอบสลิป — สลิปบางแอปมี QR หลายอัน ให้ยิงอันที่เขียนว่าตรวจสอบสลิป",
-              scanned: p.slice(0, 200),
-            });
-          }
-          if (/[\u0E00-\u0E7F]/.test(p)) {
-            return json(200, {
-              ok: false,
-              status: "failed",
-              code: "THAI_KEYBOARD",
-              error:
-                "ข้อความที่อ่านได้เป็นภาษาไทย แปลว่าแป้นพิมพ์ของเครื่องตั้งเป็นภาษาไทยตอนยิง — กด Windows+Space สลับเป็น EN แล้วยิงใหม่",
-              scanned: p.slice(0, 200),
-            });
-          }
-          if (p.length < 20) {
-            return json(200, {
-              ok: false,
-              status: "failed",
-              code: "PAYLOAD_TOO_SHORT",
-              error: `ข้อความจากสลิปสั้นผิดปกติ (${p.length} ตัวอักษร) อาจอ่านได้ไม่ครบ ลองยิงใหม่`,
-              scanned: p,
+              code: scanKind.code ?? "PAYLOAD_REJECTED",
+              error: scanKind.reason ?? "QR ที่ยิงมาไม่ใช่ QR ตรวจสอบสลิป",
+              scanned: p.slice(0, 400),
+              scanKind,
             });
           }
         }
@@ -233,8 +220,10 @@ export const Route = createFileRoute("/api/verify-slip")({
         const ac = new AbortController();
         const timeoutId = setTimeout(() => ac.abort(), EASYSLIP_TIMEOUT_MS);
         try {
+          // ส่งข้อความที่ตัดส่วนซ้ำออกแล้ว — เครื่องอ่านบางรุ่นยิงโค้ดเดิมสองรอบ
+          // ทำให้ payload ยาวเป็นสองเท่าแล้ว EasySlip ตีกลับว่าผิดรูปแบบ
           const payloadBody: Record<string, unknown> = body.payload
-            ? { payload: body.payload.trim() }
+            ? { payload: scanKind?.normalized ?? body.payload.trim() }
             : { image: String(body.imageBase64).replace(/^data:image\/\w+;base64,/, "") };
 
           const res = await fetch(EASYSLIP_ENDPOINT, {
@@ -266,7 +255,8 @@ export const Route = createFileRoute("/api/verify-slip")({
               error: ERROR_TH[c] ?? `ตรวจสลิปไม่สำเร็จ (${c})`,
               latencyMs: Date.now() - startedAt,
               debug: slipJson,
-              scanned: body.payload ? body.payload.trim().slice(0, 300) : undefined,
+              scanned: body.payload ? body.payload.trim().slice(0, 400) : undefined,
+              scanKind,
             });
           }
         } catch (e) {
