@@ -264,6 +264,32 @@ export async function redeemFreeHour(opts: {
   return data as { ok: boolean; message?: string; cost?: number; points_left?: number };
 }
 
+/**
+ * คืนแต้มที่หักไปแล้ว — ใช้ตอนหักแต้มสำเร็จแต่สร้างบิลไม่สำเร็จ
+ *
+ * ถ้าคืนไม่สำเร็จจริง ๆ จะไม่ throw ต่อ เพราะขั้นนี้เป็นการกู้สถานการณ์
+ * ที่มี error อยู่แล้ว — ปล่อยให้ error ตัวจริงถึงมือพนักงานดีกว่า
+ */
+export async function refundPoints(
+  memberId: string,
+  points: number,
+  note?: string,
+): Promise<boolean> {
+  if (points <= 0) return true;
+  try {
+    const { error } = await supabase.rpc("member_refund_points", {
+      p_member_id: memberId,
+      p_points: points,
+      p_note: note ?? null,
+    });
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error("[members] คืนแต้มไม่สำเร็จ ต้องปรับด้วยมือ:", { memberId, points, e });
+    return false;
+  }
+}
+
 /** ตารางสมาชิกพร้อมใช้งานหรือยัง (ยังไม่ได้รัน migration = false) */
 export async function membersReady(): Promise<boolean> {
   try {

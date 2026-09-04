@@ -36,7 +36,8 @@ export interface Coupon {
   updated_at: string;
 }
 
-export type PcCommandType = "lock" | "unlock" | "warn" | "shutdown" | "show_countdown" | "end_session";
+export type PcCommandType =
+  "lock" | "unlock" | "warn" | "shutdown" | "show_countdown" | "end_session";
 export type PcSessionStatus = "playing" | "ended" | "force_ended" | "cancelled";
 
 export interface PcSession {
@@ -105,6 +106,10 @@ export interface Reservation {
   start_time: string | null;
   end_time_ms: number | null;
   member_id: string | null;
+  /** ส่วนลด (บาท) จากการแลกแต้มตอนเปิดเครื่อง — 0 = ยังไม่ได้แลก */
+  points_discount?: number;
+  /** แต้มที่หักไปกับบิลนี้ */
+  points_spent?: number;
   created_at: string;
   updated_at: string;
 }

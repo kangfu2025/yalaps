@@ -49,12 +49,35 @@ export const Route = createFileRoute("/api/line-status")({
         const { data: userData } = await db.auth.getUser();
         if (!userData?.user) return json(401, { error: "unauthorized" });
 
+        // เซิร์ฟเวอร์ตัวไหนกำลังตอบอยู่ — ใช้แยกว่า "เครื่องเรา" หรือ "เว็บที่ deploy"
+        const host = new URL(request.url).host;
+        const isLocal = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host);
+        const server = { host, isLocal };
+
         const raw = process.env.LINE_CHANNEL_ACCESS_TOKEN;
         if (!raw) {
           return json(200, {
             hasToken: false,
             ok: false,
-            error: "ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์",
+            server,
+            // ไฟล์ .env อยู่บนเครื่องที่รันเซิร์ฟเวอร์เท่านั้น และถูก .gitignore ไว้
+            // จึงไม่มีทางติดไปกับ git push — เว็บที่ deploy ต้องตั้งค่าแยกที่โฮสต์
+            error: isLocal
+              ? "ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์"
+              : `เว็บที่ deploy (${host}) ยังไม่มี LINE_CHANNEL_ACCESS_TOKEN`,
+            hints: isLocal
+              ? ["ใส่บรรทัด LINE_CHANNEL_ACCESS_TOKEN=<โทเคน> ในไฟล์ .env แล้วรีสตาร์ต npm run dev"]
+              : [
+                  "ไฟล์ .env อยู่บนคอมของร้านเท่านั้น และถูกกันไม่ให้ขึ้น git (อยู่ใน .gitignore) โทเคนจึงไม่ได้ตามไปกับเว็บที่ deploy — อันนี้ตั้งใจให้เป็นแบบนี้ ไม่ใช่ความผิดพลาด",
+                  "ต้องไปตั้งค่าที่หน้าตั้งค่าของโฮสต์ (Lovable / Cloudflare / Vercel) ในหัวข้อ Environment variables หรือ Secrets โดยใช้ชื่อ LINE_CHANNEL_ACCESS_TOKEN แล้ว deploy ใหม่อีกครั้ง",
+                  "ต้องตั้ง EASYSLIP_API_KEY และ YALA_SERVICE_ROLE_KEY ที่เดียวกันด้วย ไม่งั้นตรวจสลิปและจัดการผู้ใช้จะไม่ทำงานบนเว็บที่ deploy เหมือนกัน",
+                ],
+            otherSecrets: {
+              EASYSLIP_API_KEY: !!process.env.EASYSLIP_API_KEY,
+              YALA_SERVICE_ROLE_KEY: !!(
+                process.env.YALA_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY
+              ),
+            },
           });
         }
         const token = raw.trim();
@@ -74,6 +97,7 @@ export const Route = createFileRoute("/api/line-status")({
               hasToken: true,
               ok: false,
               httpStatus: 401,
+              server,
               shape,
               error: "LINE ปฏิเสธโทเคนนี้",
               hints: [
@@ -93,6 +117,7 @@ export const Route = createFileRoute("/api/line-status")({
               hasToken: true,
               ok: false,
               httpStatus: res.status,
+              server,
               shape,
               error: `LINE ตอบกลับ ${res.status}`,
               debug: body,
@@ -111,6 +136,7 @@ export const Route = createFileRoute("/api/line-status")({
           return json(200, {
             hasToken: true,
             ok: true,
+            server,
             shape,
             bot: body,
             quota,
@@ -120,6 +146,7 @@ export const Route = createFileRoute("/api/line-status")({
           return json(200, {
             hasToken: true,
             ok: false,
+            server,
             shape,
             error: aborted
               ? "ต่อ api.line.me ไม่ติดภายใน 12 วินาที — เน็ตหรือไฟร์วอลล์บล็อกอยู่"

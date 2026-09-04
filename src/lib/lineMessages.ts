@@ -55,8 +55,8 @@ function compose(title: string, rows: Row[]): string {
 }
 
 /** ข้อความบอกวิธีชำระเงินให้อ่านรู้เรื่องในบรรทัดเดียว */
-function payText(cash: number, transfer: number, redeemedPoints = false): string {
-  if (redeemedPoints) return "🎁 แลกแต้ม (ไม่คิดเงิน)";
+function payText(cash: number, transfer: number, comped = false): string {
+  if (comped) return "🎁 แถมฟรี (ไม่คิดเงิน)";
   if (cash > 0 && transfer > 0) {
     return `ผสม — เงินสด ${formatBaht(cash)} + โอน ${formatBaht(transfer)} บาท`;
   }
@@ -91,15 +91,26 @@ export interface StartMsg {
   transfer: number;
   memberName?: string | null;
   memberPoints?: number | null;
+  /** แต้มที่หักไปเพื่อแลกเล่นฟรี 1 ชม. ตอนเปิดเครื่อง */
+  pointsSpent?: number;
+  /** ส่วนลด (บาท) ที่ได้จากการแลกแต้มนั้น */
+  pointsDiscount?: number;
   endAt?: string | number | Date | null;
 }
 
 export function buildStartMessage(m: StartMsg): string {
+  const spent = m.pointsSpent ?? 0;
   return compose(`🎮 เปิดเครื่อง — ${zoneLabel(m.zone)} เครื่อง ${m.machineNumber}`, [
     ["👤 ลูกค้า", m.customerName || "ไม่ระบุชื่อ"],
     ["💳 รูปแบบชำระ", payText(m.cash, m.transfer)],
     ["⏱️ เวลาเล่น", durationText(m.zone, m.hours, m.minutes)],
     ["🕐 ถึงเวลา", clock(m.endAt)],
+    [
+      "🎁 แลกแต้ม",
+      spent > 0
+        ? `ใช้ ${spent} แต้ม เล่นฟรี 1 ชม. (-${formatBaht(m.pointsDiscount ?? 0)} บาท)`
+        : null,
+    ],
     ["🎫 แต้มสะสม", m.memberName ? `${m.memberName} · ${pointsText(m.memberPoints)}` : null],
   ]);
 }

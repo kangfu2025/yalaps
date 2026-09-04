@@ -1,7 +1,24 @@
 import { useEffect, useState } from "react";
 import {
-  Settings2, MapPin, Monitor, User, Clock, PlayCircle, StopCircle,
-  Timer, Plus, Utensils, Wallet, Receipt, BellRing, CreditCard, Tag, ShoppingCart, IdCard, Star, Gift,
+  Settings2,
+  MapPin,
+  Monitor,
+  User,
+  Clock,
+  PlayCircle,
+  StopCircle,
+  Timer,
+  Plus,
+  Utensils,
+  Wallet,
+  Receipt,
+  BellRing,
+  CreditCard,
+  Tag,
+  ShoppingCart,
+  IdCard,
+  Star,
+  Gift,
 } from "lucide-react";
 import type { Machine, Reservation } from "@/lib/supabase";
 import { HOUR_OPTIONS, calcPrice, formatBaht, formatHours } from "@/lib/priceEngine";
@@ -9,8 +26,13 @@ import { addFood, extendTime, setReservationMember } from "@/lib/reservations";
 import { checkout, summarizeCheckout, freeHourValue } from "@/lib/billing";
 import { MemberSearch } from "./MemberSearch";
 import {
-  getMember, getPointsConfig, pointsForPlay, canRedeemZone,
-  DEFAULT_POINTS_CONFIG, type Member, type PointsConfig,
+  getMember,
+  getPointsConfig,
+  pointsForPlay,
+  canRedeemZone,
+  DEFAULT_POINTS_CONFIG,
+  type Member,
+  type PointsConfig,
 } from "@/lib/members";
 import { PromptPayQR } from "./PromptPayQR";
 import { clearDisplay, pushDisplay, toHHMM, type PaymentMethod } from "@/lib/customerDisplay";
@@ -82,19 +104,40 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
   const [cfg, setCfg] = useState<PointsConfig>(DEFAULT_POINTS_CONFIG);
   const [useFreeHour, setUseFreeHour] = useState(false);
 
-  useEffect(() => { getPointsConfig().then(setCfg).catch(() => {}); }, []);
+  useEffect(() => {
+    getPointsConfig()
+      .then(setCfg)
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     let alive = true;
-    if (!reservation.member_id) { setMember(null); return; }
+    if (!reservation.member_id) {
+      setMember(null);
+      return;
+    }
     getMember(reservation.member_id)
-      .then((m) => { if (alive) setMember(m); })
+      .then((m) => {
+        if (alive) setMember(m);
+      })
       .catch((e) => console.warn("[bill] load member failed:", e));
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [reservation.member_id]);
 
   const redeemValue = freeHourValue(machine.zone, promotion);
-  const canRedeem = !!member && canRedeemZone(machine.zone, cfg) && member.points >= cfg.redeem_cost;
-  const willEarn = member ? pointsForPlay(machine.zone, { hours: Number(reservation.total_hours) }, cfg) : 0;
+  // บิลนี้แลกแต้มไปแล้วตั้งแต่ตอนเปิดเครื่องหรือยัง — ถ้าแลกแล้วต้องหักส่วนลดต่อ
+  // และห้ามให้กดแลกซ้ำ (ฐานข้อมูลกันไว้อีกชั้นด้วย)
+  const redeemedAtStart = Number(reservation.points_spent) > 0;
+  const startDiscount = redeemedAtStart ? Number(reservation.points_discount) || 0 : 0;
+  const canRedeem =
+    !redeemedAtStart &&
+    !!member &&
+    canRedeemZone(machine.zone, cfg) &&
+    member.points >= cfg.redeem_cost;
+  const willEarn = member
+    ? pointsForPlay(machine.zone, { hours: Number(reservation.total_hours) }, cfg)
+    : 0;
 
   async function handleMemberChange(m: Member | null) {
     setMember(m);
@@ -110,7 +153,7 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
   const summary = summarizeCheckout(
     reservation,
     promotion,
-    useFreeHour && canRedeem ? redeemValue : 0,
+    redeemedAtStart ? startDiscount : useFreeHour && canRedeem ? redeemValue : 0,
   );
   const [finalPay, setFinalPay] = useState<PayMode>("cash");
   const [finalCash, setFinalCash] = useState<string>(String(summary.remaining));
@@ -119,7 +162,9 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
   const foodNum = Number(foodAmt) || 0;
 
   // สินค้าที่ลงบิลไว้ที่เครื่องนี้ (ยังไม่เก็บเงิน)
-  const [prodSales, setProdSales] = useState<(ProductSale & { product_sale_items: ProductSaleItem[] })[]>([]);
+  const [prodSales, setProdSales] = useState<
+    (ProductSale & { product_sale_items: ProductSaleItem[] })[]
+  >([]);
   useEffect(() => {
     listOpenSalesForBill({ reservationId: reservation.id })
       .then(setProdSales)
@@ -146,16 +191,12 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
   useEffect(() => {
     const basePlayHours = Number(reservation.total_hours) || 0;
     const baseFood = Number(reservation.food_revenue) || 0;
-    const playHours =
-      tab === "extend" ? basePlayHours + (Number(extHrs) || 0) : basePlayHours;
-    const foodAmount =
-      tab === "food" ? baseFood + foodNum : baseFood;
+    const playHours = tab === "extend" ? basePlayHours + (Number(extHrs) || 0) : basePlayHours;
+    const foodAmount = tab === "food" ? baseFood + foodNum : baseFood;
 
-    const currentPay: PayMode =
-      tab === "checkout" ? finalPay : tab === "extend" ? extPay : foodPay;
+    const currentPay: PayMode = tab === "checkout" ? finalPay : tab === "extend" ? extPay : foodPay;
 
-    const amount =
-      tab === "checkout" ? grandRemaining : tab === "extend" ? extPrice : foodNum;
+    const amount = tab === "checkout" ? grandRemaining : tab === "extend" ? extPrice : foodNum;
 
     const chargeType: "extend" | "food" | "checkout" =
       tab === "extend" ? "extend" : tab === "food" ? "food" : "checkout";
@@ -172,12 +213,24 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
       charge_type: chargeType,
       extend_hours: tab === "extend" ? Number(extHrs) || 0 : 0,
       food_charge: tab === "food" ? foodNum : 0,
-      message: tab === "checkout" ? `ยอดสุทธิ ${formatBaht(summary.total_due + productTotal)} บาท` : "",
+      message:
+        tab === "checkout" ? `ยอดสุทธิ ${formatBaht(summary.total_due + productTotal)} บาท` : "",
       amount,
       payment_method: payModeToMethod(currentPay),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, foodAmt, foodPay, foodTransfer, extHrs, extPay, extTransfer, finalPay, finalTransfer, finalCash]);
+  }, [
+    tab,
+    foodAmt,
+    foodPay,
+    foodTransfer,
+    extHrs,
+    extPay,
+    extTransfer,
+    finalPay,
+    finalTransfer,
+    finalCash,
+  ]);
 
   async function handleFood(e: React.FormEvent) {
     e.preventDefault();
@@ -186,9 +239,16 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
     try {
       let c = Number(foodCash) || 0;
       let t = Number(foodTransfer) || 0;
-      if (foodPay === "cash") { c = foodNum; t = 0; }
-      else if (foodPay === "transfer") { c = 0; t = foodNum; }
-      else if (foodPay === "credit") { c = 0; t = 0; }
+      if (foodPay === "cash") {
+        c = foodNum;
+        t = 0;
+      } else if (foodPay === "transfer") {
+        c = 0;
+        t = foodNum;
+      } else if (foodPay === "credit") {
+        c = 0;
+        t = 0;
+      }
       await addFood(reservation, foodNum, c, t);
       await clearDisplay();
       onSuccess();
@@ -207,9 +267,16 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
     try {
       let c = Number(extCash) || 0;
       let t = Number(extTransfer) || 0;
-      if (extPay === "cash") { c = extPrice; t = 0; }
-      else if (extPay === "transfer") { c = 0; t = extPrice; }
-      else if (extPay === "credit") { c = 0; t = 0; }
+      if (extPay === "cash") {
+        c = extPrice;
+        t = 0;
+      } else if (extPay === "transfer") {
+        c = 0;
+        t = extPrice;
+      } else if (extPay === "credit") {
+        c = 0;
+        t = 0;
+      }
       await extendTime(reservation, extHrs, c, t);
       await clearDisplay();
       onSuccess();
@@ -243,10 +310,19 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
     try {
       let c = Number(finalCash) || 0;
       let t = Number(finalTransfer) || 0;
-      if (finalPay === "cash") { c = grandRemaining; t = 0; }
-      else if (finalPay === "transfer") { c = 0; t = grandRemaining; }
-      else if (finalPay === "credit") { c = 0; t = 0; }
-      else if (finalPay === "points") { c = 0; t = 0; }
+      if (finalPay === "cash") {
+        c = grandRemaining;
+        t = 0;
+      } else if (finalPay === "transfer") {
+        c = 0;
+        t = grandRemaining;
+      } else if (finalPay === "credit") {
+        c = 0;
+        t = 0;
+      } else if (finalPay === "points") {
+        c = 0;
+        t = 0;
+      }
 
       // แยกเงินส่วนสินค้าออกจากบิลเครื่อง (กันนับรายได้ซ้ำ)
       let prodCash = 0;
@@ -298,35 +374,88 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
           <h5 className="modal-title fw-bold m-0 d-flex align-items-center gap-2">
             <Settings2 size={20} /> จัดการบิลเครื่องเกม
           </h5>
-          <button className="btn-close btn-close-white" onClick={() => { clearDisplay(); onClose(); }} />
+          <button
+            className="btn-close btn-close-white"
+            onClick={() => {
+              clearDisplay();
+              onClose();
+            }}
+          />
         </div>
 
         <div className="p-4">
           <div className="row g-3 mb-3">
             <div className="col-md-6">
               <div className="p-3 bg-light rounded-3 info-panel">
-                <p className="mb-1 d-flex align-items-center gap-2"><MapPin size={16} className="text-info" /> <b>โซน:</b> {headerLabel}</p>
-                <p className="mb-1 d-flex align-items-center gap-2"><Monitor size={16} className="text-info" /> <b>เครื่อง:</b> {machine.machine_number}</p>
-                <p className="mb-2 d-flex align-items-center gap-2"><User size={16} className="text-info" /> <b>ลูกค้า:</b> <span className="text-primary fw-bold">{reservation.customer_name}</span></p>
+                <p className="mb-1 d-flex align-items-center gap-2">
+                  <MapPin size={16} className="text-info" /> <b>โซน:</b> {headerLabel}
+                </p>
+                <p className="mb-1 d-flex align-items-center gap-2">
+                  <Monitor size={16} className="text-info" /> <b>เครื่อง:</b>{" "}
+                  {machine.machine_number}
+                </p>
+                <p className="mb-2 d-flex align-items-center gap-2">
+                  <User size={16} className="text-info" /> <b>ลูกค้า:</b>{" "}
+                  <span className="text-primary fw-bold">{reservation.customer_name}</span>
+                </p>
 
                 <hr className="my-2" />
 
-                <p className="mb-1 d-flex align-items-center gap-2"><PlayCircle size={16} className="text-success" /> <b>เริ่มเปิดเครื่อง:</b> <span className="text-success fw-bold">{formatDateClock(reservation.start_time)}</span></p>
-                <p className="mb-1 d-flex align-items-center gap-2"><StopCircle size={16} className="text-danger" /> <b>หมดเวลา:</b> <span className="text-danger fw-bold">{formatDateClock(reservation.end_time_ms)}</span></p>
-                <p className="mb-1 d-flex align-items-center gap-2"><Timer size={16} className="text-warning" /> <b>เวลาตั้งต้น:</b> {formatHours(reservation.base_hours)} ชม. ({formatClock(reservation.start_time)} น.)</p>
+                <p className="mb-1 d-flex align-items-center gap-2">
+                  <PlayCircle size={16} className="text-success" /> <b>เริ่มเปิดเครื่อง:</b>{" "}
+                  <span className="text-success fw-bold">
+                    {formatDateClock(reservation.start_time)}
+                  </span>
+                </p>
+                <p className="mb-1 d-flex align-items-center gap-2">
+                  <StopCircle size={16} className="text-danger" /> <b>หมดเวลา:</b>{" "}
+                  <span className="text-danger fw-bold">
+                    {formatDateClock(reservation.end_time_ms)}
+                  </span>
+                </p>
+                <p className="mb-1 d-flex align-items-center gap-2">
+                  <Timer size={16} className="text-warning" /> <b>เวลาตั้งต้น:</b>{" "}
+                  {formatHours(reservation.base_hours)} ชม. ({formatClock(reservation.start_time)}{" "}
+                  น.)
+                </p>
                 {extendedMinutes > 0 && (
-                  <p className="mb-1 d-flex align-items-center gap-2"><Plus size={16} className="text-warning" /> <b>ต่อเวลาแล้ว:</b> <span className="text-warning fw-bold">{extendedMinutes} นาที</span> ({formatHours(reservation.extended_hours)} ชม.)</p>
+                  <p className="mb-1 d-flex align-items-center gap-2">
+                    <Plus size={16} className="text-warning" /> <b>ต่อเวลาแล้ว:</b>{" "}
+                    <span className="text-warning fw-bold">{extendedMinutes} นาที</span> (
+                    {formatHours(reservation.extended_hours)} ชม.)
+                  </p>
                 )}
-                <p className="mb-1 d-flex align-items-center gap-2"><Clock size={16} className="text-primary" /> <b>รวมเวลาเล่น:</b> <span className="text-primary fw-bold">{formatHours(reservation.total_hours)} ชม.</span></p>
+                <p className="mb-1 d-flex align-items-center gap-2">
+                  <Clock size={16} className="text-primary" /> <b>รวมเวลาเล่น:</b>{" "}
+                  <span className="text-primary fw-bold">
+                    {formatHours(reservation.total_hours)} ชม.
+                  </span>
+                </p>
 
                 <hr className="my-2" />
 
-                <p className="mb-1 d-flex align-items-center gap-2"><Utensils size={16} className="text-danger" /> <b>ค่าอาหาร/ขนม:</b> <span className="text-danger fw-bold">{formatBaht(reservation.food_revenue)}</span> บาท</p>
-                <p className="mb-0 d-flex align-items-center gap-2"><Wallet size={16} className="text-success" /> <b>มัดจำชำระแล้ว:</b> <span className="text-success fw-bold">{formatBaht(Number(reservation.advance_cash) + Number(reservation.advance_transfer))}</span> บาท</p>
+                <p className="mb-1 d-flex align-items-center gap-2">
+                  <Utensils size={16} className="text-danger" /> <b>ค่าอาหาร/ขนม:</b>{" "}
+                  <span className="text-danger fw-bold">
+                    {formatBaht(reservation.food_revenue)}
+                  </span>{" "}
+                  บาท
+                </p>
+                <p className="mb-0 d-flex align-items-center gap-2">
+                  <Wallet size={16} className="text-success" /> <b>มัดจำชำระแล้ว:</b>{" "}
+                  <span className="text-success fw-bold">
+                    {formatBaht(
+                      Number(reservation.advance_cash) + Number(reservation.advance_transfer),
+                    )}
+                  </span>{" "}
+                  บาท
+                </p>
 
                 <hr className="my-2" />
 
-                <p className="mb-2 d-flex align-items-center gap-2"><IdCard size={16} className="text-info" /> <b>สมาชิกสะสมแต้ม</b></p>
+                <p className="mb-2 d-flex align-items-center gap-2">
+                  <IdCard size={16} className="text-info" /> <b>สมาชิกสะสมแต้ม</b>
+                </p>
                 <MemberSearch
                   value={member}
                   onChange={handleMemberChange}
@@ -336,9 +465,16 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
                 {member && (
                   <>
                     <div className="small text-success mt-2 d-flex align-items-center gap-1">
-                      <Star size={13} /> ปิดบิลนี้จะได้อีก <b>{willEarn}</b> แต้ม (รวมเป็น {member.points + willEarn})
+                      <Star size={13} /> ปิดบิลนี้จะได้อีก <b>{willEarn}</b> แต้ม (รวมเป็น{" "}
+                      {member.points + willEarn})
                     </div>
-                    {canRedeemZone(machine.zone, cfg) ? (
+                    {redeemedAtStart ? (
+                      <div className="small mt-2" style={{ color: "#a855f7" }}>
+                        <Gift size={13} /> บิลนี้ใช้ <b>{Number(reservation.points_spent)}</b> แต้ม
+                        แลกเล่นฟรี 1 ชม. ไปแล้วตอนเปิดเครื่อง — หักส่วนลด{" "}
+                        <b>{formatBaht(startDiscount)}</b> บ. ให้แล้ว
+                      </div>
+                    ) : canRedeemZone(machine.zone, cfg) ? (
                       <div className="form-check mt-2">
                         <input
                           className="form-check-input"
@@ -349,9 +485,15 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
                           onChange={(e) => setUseFreeHour(e.target.checked)}
                         />
                         <label className="form-check-label small" htmlFor="useFreeHour">
-                          <Gift size={13} className="text-warning" /> ใช้ <b>{cfg.redeem_cost}</b> แต้ม แลกเล่นฟรี 1 ชม.
-                          {" "}<span className="text-danger">(-{formatBaht(redeemValue)} บ.)</span>
-                          {!canRedeem && <span className="text-muted"> — แต้มไม่พอ</span>}
+                          <Gift size={13} className="text-warning" /> ใช้ <b>{cfg.redeem_cost}</b>{" "}
+                          แต้ม แลกเล่นฟรี 1 ชม.{" "}
+                          <span className="text-danger">(-{formatBaht(redeemValue)} บ.)</span>
+                          {!canRedeem && (
+                            <span className="text-muted">
+                              {" "}
+                              — แต้มไม่พอ (มี {member.points} ต้องใช้ {cfg.redeem_cost})
+                            </span>
+                          )}
                         </label>
                       </div>
                     ) : (
@@ -364,20 +506,37 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
             <div className="col-md-6">
               <ul className="nav nav-pills nav-fill mb-3">
                 <li className="nav-item">
-                  <button className={`nav-link btn-sm d-inline-flex align-items-center gap-1 ${tab === "food" ? "active" : ""}`} onClick={() => setTab("food")}><Utensils size={14} /> อาหาร</button>
+                  <button
+                    className={`nav-link btn-sm d-inline-flex align-items-center gap-1 ${tab === "food" ? "active" : ""}`}
+                    onClick={() => setTab("food")}
+                  >
+                    <Utensils size={14} /> อาหาร
+                  </button>
                 </li>
                 <li className="nav-item">
-                  <button className={`nav-link btn-sm d-inline-flex align-items-center gap-1 ${tab === "extend" ? "active" : ""}`} onClick={() => setTab("extend")}><Timer size={14} /> ต่อเวลา</button>
+                  <button
+                    className={`nav-link btn-sm d-inline-flex align-items-center gap-1 ${tab === "extend" ? "active" : ""}`}
+                    onClick={() => setTab("extend")}
+                  >
+                    <Timer size={14} /> ต่อเวลา
+                  </button>
                 </li>
                 <li className="nav-item">
-                  <button className={`nav-link btn-sm fw-bold d-inline-flex align-items-center gap-1 ${tab === "checkout" ? "active bg-danger text-white" : "text-danger"}`} onClick={() => setTab("checkout")}><BellRing size={14} /> เช็คบิล</button>
+                  <button
+                    className={`nav-link btn-sm fw-bold d-inline-flex align-items-center gap-1 ${tab === "checkout" ? "active bg-danger text-white" : "text-danger"}`}
+                    onClick={() => setTab("checkout")}
+                  >
+                    <BellRing size={14} /> เช็คบิล
+                  </button>
                 </li>
               </ul>
 
               <div className="p-3 border rounded-4 bg-white">
                 {tab === "food" && (
                   <form onSubmit={handleFood}>
-                    <label className="small fw-bold d-flex align-items-center gap-1"><Utensils size={14} /> ราคาอาหารรวม (บาท)</label>
+                    <label className="small fw-bold d-flex align-items-center gap-1">
+                      <Utensils size={14} /> ราคาอาหารรวม (บาท)
+                    </label>
                     <input
                       type="number"
                       className="form-control mb-2"
@@ -388,39 +547,107 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
                     <PayModeRadio value={foodPay} onChange={setFoodPay} />
                     {foodPay === "mixed" && (
                       <div className="row g-2 mt-2">
-                        <div className="col-6"><input type="number" className="form-control" placeholder="เงินสด" value={foodCash} onChange={(e) => setFoodCash(e.target.value)} /></div>
-                        <div className="col-6"><input type="number" className="form-control" placeholder="เงินโอน" value={foodTransfer} onChange={(e) => setFoodTransfer(e.target.value)} /></div>
+                        <div className="col-6">
+                          <input
+                            type="number"
+                            className="form-control"
+                            placeholder="เงินสด"
+                            value={foodCash}
+                            onChange={(e) => setFoodCash(e.target.value)}
+                          />
+                        </div>
+                        <div className="col-6">
+                          <input
+                            type="number"
+                            className="form-control"
+                            placeholder="เงินโอน"
+                            value={foodTransfer}
+                            onChange={(e) => setFoodTransfer(e.target.value)}
+                          />
+                        </div>
                       </div>
                     )}
                     {foodPay === "credit" && (
-                      <div className="alert alert-warning py-2 small mt-2 mb-0">ค้างจ่าย — เพิ่มยอดอาหารโดยไม่หักเงิน</div>
+                      <div className="alert alert-warning py-2 small mt-2 mb-0">
+                        ค้างจ่าย — เพิ่มยอดอาหารโดยไม่หักเงิน
+                      </div>
                     )}
-                    <PromptPayQR amount={foodPay === "transfer" ? foodNum : foodPay === "mixed" ? (Number(foodTransfer) || 0) : 0} />
-                    <button className="btn btn-success w-100 fw-bold mt-2 d-inline-flex align-items-center justify-content-center gap-1" disabled={busy || foodNum <= 0}><Plus size={16} /> เพิ่มอาหาร</button>
+                    <PromptPayQR
+                      amount={
+                        foodPay === "transfer"
+                          ? foodNum
+                          : foodPay === "mixed"
+                            ? Number(foodTransfer) || 0
+                            : 0
+                      }
+                    />
+                    <button
+                      className="btn btn-success w-100 fw-bold mt-2 d-inline-flex align-items-center justify-content-center gap-1"
+                      disabled={busy || foodNum <= 0}
+                    >
+                      <Plus size={16} /> เพิ่มอาหาร
+                    </button>
                   </form>
                 )}
 
                 {tab === "extend" && (
                   <form onSubmit={handleExtend}>
-                    <label className="small fw-bold d-flex align-items-center gap-1"><Timer size={14} /> เวลาที่ต่อเพิ่ม</label>
-                    <select className="form-select mb-2" value={extHrs} onChange={(e) => setExtHrs(parseFloat(e.target.value))}>
+                    <label className="small fw-bold d-flex align-items-center gap-1">
+                      <Timer size={14} /> เวลาที่ต่อเพิ่ม
+                    </label>
+                    <select
+                      className="form-select mb-2"
+                      value={extHrs}
+                      onChange={(e) => setExtHrs(parseFloat(e.target.value))}
+                    >
                       {HOUR_OPTIONS.map((h) => (
-                        <option key={h} value={h}>{h} ชม. ({Math.round(h * 60)} นาที) — {formatBaht(calcPrice(machine.zone, h, override))} บาท</option>
+                        <option key={h} value={h}>
+                          {h} ชม. ({Math.round(h * 60)} นาที) —{" "}
+                          {formatBaht(calcPrice(machine.zone, h, override))} บาท
+                        </option>
                       ))}
                     </select>
-                    {promotion && <div className="small text-success mb-2"><Tag size={12} /> ใช้โปร: <b>{promotion.name}</b></div>}
+                    {promotion && (
+                      <div className="small text-success mb-2">
+                        <Tag size={12} /> ใช้โปร: <b>{promotion.name}</b>
+                      </div>
+                    )}
                     <PayModeRadio value={extPay} onChange={setExtPay} />
                     {extPay === "mixed" && (
                       <div className="row g-2 mt-2">
-                        <div className="col-6"><input type="number" className="form-control" placeholder="เงินสด" value={extCash} onChange={(e) => setExtCash(e.target.value)} /></div>
-                        <div className="col-6"><input type="number" className="form-control" placeholder="เงินโอน" value={extTransfer} onChange={(e) => setExtTransfer(e.target.value)} /></div>
+                        <div className="col-6">
+                          <input
+                            type="number"
+                            className="form-control"
+                            placeholder="เงินสด"
+                            value={extCash}
+                            onChange={(e) => setExtCash(e.target.value)}
+                          />
+                        </div>
+                        <div className="col-6">
+                          <input
+                            type="number"
+                            className="form-control"
+                            placeholder="เงินโอน"
+                            value={extTransfer}
+                            onChange={(e) => setExtTransfer(e.target.value)}
+                          />
+                        </div>
                       </div>
                     )}
                     {extPay === "credit" && (
-                      <div className="alert alert-warning py-2 small mt-2 mb-0">ค้างจ่าย — ต่อเวลาโดยไม่หักเงิน</div>
+                      <div className="alert alert-warning py-2 small mt-2 mb-0">
+                        ค้างจ่าย — ต่อเวลาโดยไม่หักเงิน
+                      </div>
                     )}
                     <PromptPayQR
-                      amount={extPay === "transfer" ? extPrice : extPay === "mixed" ? (Number(extTransfer) || 0) : 0}
+                      amount={
+                        extPay === "transfer"
+                          ? extPrice
+                          : extPay === "mixed"
+                            ? Number(extTransfer) || 0
+                            : 0
+                      }
                       reservationId={reservation.id}
                       onVerified={extPay === "transfer" ? () => runAfterSlip("extend") : undefined}
                     />
@@ -429,101 +656,258 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
                         ✅ ตรวจสลิปผ่านแล้ว — กำลังต่อเวลา...
                       </div>
                     )}
-                    <button className="btn btn-primary w-100 fw-bold mt-2 d-inline-flex align-items-center justify-content-center gap-1" disabled={busy}><Plus size={16} /> ต่อเวลา {Math.round(extHrs * 60)} นาที</button>
+                    <button
+                      className="btn btn-primary w-100 fw-bold mt-2 d-inline-flex align-items-center justify-content-center gap-1"
+                      disabled={busy}
+                    >
+                      <Plus size={16} /> ต่อเวลา {Math.round(extHrs * 60)} นาที
+                    </button>
                   </form>
                 )}
 
-                {tab === "checkout" && (
-                  grandRemaining <= 0 ? (
-                    <form onSubmit={(e) => { e.preventDefault(); setConfirmCheckout(true); }}>
+                {tab === "checkout" &&
+                  (grandRemaining <= 0 ? (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        setConfirmCheckout(true);
+                      }}
+                    >
                       <div className="bg-light p-2 rounded mb-2 small">
-                        <div className="d-flex justify-content-between align-items-center"><span className="d-inline-flex align-items-center gap-1"><Clock size={13} /> เวลาเล่นรวม</span><b>{formatHours(summary.duration_hours)} ชม.</b></div>
-                        <div className="d-flex justify-content-between align-items-center"><span className="d-inline-flex align-items-center gap-1"><Monitor size={13} /> ค่าเครื่อง</span><b>{formatBaht(summary.machine_price)} บ.</b></div>
-                        <div className="d-flex justify-content-between align-items-center"><span className="d-inline-flex align-items-center gap-1"><Utensils size={13} /> ค่าอาหาร</span><b>{formatBaht(summary.food_price)} บ.</b></div>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <span className="d-inline-flex align-items-center gap-1">
+                            <Clock size={13} /> เวลาเล่นรวม
+                          </span>
+                          <b>{formatHours(summary.duration_hours)} ชม.</b>
+                        </div>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <span className="d-inline-flex align-items-center gap-1">
+                            <Monitor size={13} /> ค่าเครื่อง
+                          </span>
+                          <b>{formatBaht(summary.machine_price)} บ.</b>
+                        </div>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <span className="d-inline-flex align-items-center gap-1">
+                            <Utensils size={13} /> ค่าอาหาร
+                          </span>
+                          <b>{formatBaht(summary.food_price)} บ.</b>
+                        </div>
                         {productTotal > 0 && (
                           <>
                             {productItems.map((it) => (
-                              <div key={it.id} className="d-flex justify-content-between align-items-center">
-                                <span className="d-inline-flex align-items-center gap-1"><ShoppingCart size={13} /> {it.name} x{it.qty}</span>
+                              <div
+                                key={it.id}
+                                className="d-flex justify-content-between align-items-center"
+                              >
+                                <span className="d-inline-flex align-items-center gap-1">
+                                  <ShoppingCart size={13} /> {it.name} x{it.qty}
+                                </span>
                                 <b>{formatBaht(Number(it.subtotal))} บ.</b>
                               </div>
                             ))}
-                            <div className="d-flex justify-content-between align-items-center"><span className="d-inline-flex align-items-center gap-1"><ShoppingCart size={13} /> รวมค่าสินค้า</span><b>{formatBaht(productTotal)} บ.</b></div>
+                            <div className="d-flex justify-content-between align-items-center">
+                              <span className="d-inline-flex align-items-center gap-1">
+                                <ShoppingCart size={13} /> รวมค่าสินค้า
+                              </span>
+                              <b>{formatBaht(productTotal)} บ.</b>
+                            </div>
                           </>
                         )}
                         <hr className="my-1" />
                         {summary.points_discount > 0 && (
-                          <div className="d-flex justify-content-between align-items-center"><span className="d-inline-flex align-items-center gap-1"><Gift size={13} /> ส่วนลดแต้ม</span><b className="text-success">-{formatBaht(summary.points_discount)} บ.</b></div>
+                          <div className="d-flex justify-content-between align-items-center">
+                            <span className="d-inline-flex align-items-center gap-1">
+                              <Gift size={13} /> ส่วนลดแต้ม
+                            </span>
+                            <b className="text-success">
+                              -{formatBaht(summary.points_discount)} บ.
+                            </b>
+                          </div>
                         )}
-                        <div className="d-flex justify-content-between align-items-center"><span className="d-inline-flex align-items-center gap-1"><Receipt size={13} /> ยอดสุทธิ</span><b className="text-danger">{formatBaht(summary.total_due + productTotal)} บ.</b></div>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <span className="d-inline-flex align-items-center gap-1">
+                            <Receipt size={13} /> ยอดสุทธิ
+                          </span>
+                          <b className="text-danger">
+                            {formatBaht(summary.total_due + productTotal)} บ.
+                          </b>
+                        </div>
                       </div>
                       <div className="alert alert-success py-3 mb-2 text-center">
-                        <div className="fw-bold d-inline-flex align-items-center gap-2 mb-2"><Wallet size={18} /> ชำระเงินเรียบร้อยแล้ว</div>
+                        <div className="fw-bold d-inline-flex align-items-center gap-2 mb-2">
+                          <Wallet size={18} /> ชำระเงินเรียบร้อยแล้ว
+                        </div>
                         <div className="small">
                           {summary.advance_cash > 0 && (
-                            <div>เงินสด: <b>{formatBaht(summary.advance_cash)} บ.</b></div>
+                            <div>
+                              เงินสด: <b>{formatBaht(summary.advance_cash)} บ.</b>
+                            </div>
                           )}
                           {summary.advance_transfer > 0 && (
-                            <div>เงินโอน: <b>{formatBaht(summary.advance_transfer)} บ.</b></div>
+                            <div>
+                              เงินโอน: <b>{formatBaht(summary.advance_transfer)} บ.</b>
+                            </div>
                           )}
                         </div>
                       </div>
-                      <button type="submit" className="btn btn-success w-100 fw-bold mt-2 d-inline-flex align-items-center justify-content-center gap-1" disabled={busy}><BellRing size={16} /> ปิดบิล</button>
+                      <button
+                        type="submit"
+                        className="btn btn-success w-100 fw-bold mt-2 d-inline-flex align-items-center justify-content-center gap-1"
+                        disabled={busy}
+                      >
+                        <BellRing size={16} /> ปิดบิล
+                      </button>
                     </form>
                   ) : (
-                  <form onSubmit={(e) => { e.preventDefault(); setConfirmCheckout(true); }}>
-                    <div className="bg-light p-2 rounded mb-2 small">
-                      <div className="d-flex justify-content-between align-items-center"><span className="d-inline-flex align-items-center gap-1"><Clock size={13} /> เวลาเล่นรวม</span><b>{formatHours(summary.duration_hours)} ชม.</b></div>
-                      <div className="d-flex justify-content-between align-items-center"><span className="d-inline-flex align-items-center gap-1"><Monitor size={13} /> ค่าเครื่อง</span><b>{formatBaht(summary.machine_price)} บ.</b></div>
-                      <div className="d-flex justify-content-between align-items-center"><span className="d-inline-flex align-items-center gap-1"><Utensils size={13} /> ค่าอาหาร</span><b>{formatBaht(summary.food_price)} บ.</b></div>
-                      {productTotal > 0 && (
-                        <>
-                          {productItems.map((it) => (
-                            <div key={it.id} className="d-flex justify-content-between align-items-center">
-                              <span className="d-inline-flex align-items-center gap-1"><ShoppingCart size={13} /> {it.name} x{it.qty}</span>
-                              <b>{formatBaht(Number(it.subtotal))} บ.</b>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        setConfirmCheckout(true);
+                      }}
+                    >
+                      <div className="bg-light p-2 rounded mb-2 small">
+                        <div className="d-flex justify-content-between align-items-center">
+                          <span className="d-inline-flex align-items-center gap-1">
+                            <Clock size={13} /> เวลาเล่นรวม
+                          </span>
+                          <b>{formatHours(summary.duration_hours)} ชม.</b>
+                        </div>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <span className="d-inline-flex align-items-center gap-1">
+                            <Monitor size={13} /> ค่าเครื่อง
+                          </span>
+                          <b>{formatBaht(summary.machine_price)} บ.</b>
+                        </div>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <span className="d-inline-flex align-items-center gap-1">
+                            <Utensils size={13} /> ค่าอาหาร
+                          </span>
+                          <b>{formatBaht(summary.food_price)} บ.</b>
+                        </div>
+                        {productTotal > 0 && (
+                          <>
+                            {productItems.map((it) => (
+                              <div
+                                key={it.id}
+                                className="d-flex justify-content-between align-items-center"
+                              >
+                                <span className="d-inline-flex align-items-center gap-1">
+                                  <ShoppingCart size={13} /> {it.name} x{it.qty}
+                                </span>
+                                <b>{formatBaht(Number(it.subtotal))} บ.</b>
+                              </div>
+                            ))}
+                            <div className="d-flex justify-content-between align-items-center">
+                              <span className="d-inline-flex align-items-center gap-1">
+                                <ShoppingCart size={13} /> รวมค่าสินค้า
+                              </span>
+                              <b>{formatBaht(productTotal)} บ.</b>
                             </div>
-                          ))}
-                          <div className="d-flex justify-content-between align-items-center"><span className="d-inline-flex align-items-center gap-1"><ShoppingCart size={13} /> รวมค่าสินค้า</span><b>{formatBaht(productTotal)} บ.</b></div>
-                        </>
+                          </>
+                        )}
+                        <hr className="my-1" />
+                        {summary.points_discount > 0 && (
+                          <div className="d-flex justify-content-between align-items-center">
+                            <span className="d-inline-flex align-items-center gap-1">
+                              <Gift size={13} /> ส่วนลดแต้ม
+                            </span>
+                            <b className="text-success">
+                              -{formatBaht(summary.points_discount)} บ.
+                            </b>
+                          </div>
+                        )}
+                        <div className="d-flex justify-content-between align-items-center">
+                          <span className="d-inline-flex align-items-center gap-1">
+                            <Receipt size={13} /> ยอดสุทธิ
+                          </span>
+                          <b className="text-danger">
+                            {formatBaht(summary.total_due + productTotal)} บ.
+                          </b>
+                        </div>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <span className="d-inline-flex align-items-center gap-1">
+                            <Wallet size={13} /> หัก มัดจำ
+                          </span>
+                          <b>-{formatBaht(summary.advance_cash + summary.advance_transfer)} บ.</b>
+                        </div>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <span className="d-inline-flex align-items-center gap-1">
+                            <CreditCard size={13} /> คงเหลือชำระ
+                          </span>
+                          <b className="text-success">{formatBaht(grandRemaining)} บ.</b>
+                        </div>
+                      </div>
+                      <label className="small fw-bold d-flex align-items-center gap-1">
+                        <CreditCard size={14} /> ช่องทางรับเงินส่วนที่เหลือ
+                      </label>
+                      <PayModeRadio
+                        value={finalPay === "credit" ? "cash" : finalPay}
+                        onChange={setFinalPay}
+                        hideCredit
+                        showPoints
+                      />
+                      {finalPay === "mixed" && (
+                        <div className="row g-2 mt-2">
+                          <div className="col-6">
+                            <input
+                              type="number"
+                              className="form-control"
+                              placeholder="เงินสด"
+                              value={finalCash}
+                              onChange={(e) => setFinalCash(e.target.value)}
+                            />
+                          </div>
+                          <div className="col-6">
+                            <input
+                              type="number"
+                              className="form-control"
+                              placeholder="เงินโอน"
+                              value={finalTransfer}
+                              onChange={(e) => setFinalTransfer(e.target.value)}
+                            />
+                          </div>
+                        </div>
                       )}
-                      <hr className="my-1" />
-                      {summary.points_discount > 0 && (
-                        <div className="d-flex justify-content-between align-items-center"><span className="d-inline-flex align-items-center gap-1"><Gift size={13} /> ส่วนลดแต้ม</span><b className="text-success">-{formatBaht(summary.points_discount)} บ.</b></div>
+                      {finalPay === "points" && (
+                        <div
+                          className="alert py-2 small mt-2 mb-0"
+                          style={{
+                            background: "#f3e8ff",
+                            color: "#6b21a8",
+                            border: "1px solid #d8b4fe",
+                          }}
+                        >
+                          🎁 ร้านแถมให้ — ปิดบิลโดยไม่หักเงิน และไม่หักแต้มสมาชิก (ไม่นับเข้ารายได้)
+                        </div>
                       )}
-                      <div className="d-flex justify-content-between align-items-center"><span className="d-inline-flex align-items-center gap-1"><Receipt size={13} /> ยอดสุทธิ</span><b className="text-danger">{formatBaht(summary.total_due + productTotal)} บ.</b></div>
-                      <div className="d-flex justify-content-between align-items-center"><span className="d-inline-flex align-items-center gap-1"><Wallet size={13} /> หัก มัดจำ</span><b>-{formatBaht(summary.advance_cash + summary.advance_transfer)} บ.</b></div>
-                      <div className="d-flex justify-content-between align-items-center"><span className="d-inline-flex align-items-center gap-1"><CreditCard size={13} /> คงเหลือชำระ</span><b className="text-success">{formatBaht(grandRemaining)} บ.</b></div>
-                    </div>
-                    <label className="small fw-bold d-flex align-items-center gap-1"><CreditCard size={14} /> ช่องทางรับเงินส่วนที่เหลือ</label>
-                    <PayModeRadio value={finalPay === "credit" ? "cash" : finalPay} onChange={setFinalPay} hideCredit showPoints />
-                    {finalPay === "mixed" && (
-                      <div className="row g-2 mt-2">
-                        <div className="col-6"><input type="number" className="form-control" placeholder="เงินสด" value={finalCash} onChange={(e) => setFinalCash(e.target.value)} /></div>
-                        <div className="col-6"><input type="number" className="form-control" placeholder="เงินโอน" value={finalTransfer} onChange={(e) => setFinalTransfer(e.target.value)} /></div>
-                      </div>
-                    )}
-                    {finalPay === "points" && (
-                      <div className="alert py-2 small mt-2 mb-0" style={{ background: "#f3e8ff", color: "#6b21a8", border: "1px solid #d8b4fe" }}>
-                        🎁 ลูกค้าแลกแต้ม — ปิดบิลโดยไม่หักเงิน (ไม่นับเข้ารายได้)
-                      </div>
-                    )}
 
-                    <PromptPayQR
-                      amount={finalPay === "transfer" ? grandRemaining : finalPay === "mixed" ? (Number(finalTransfer) || 0) : 0}
-                      reservationId={reservation.id}
-                      onVerified={finalPay === "transfer" ? () => runAfterSlip("checkout") : undefined}
-                    />
-                    {autoRun === "checkout" && (
-                      <div className="alert alert-success py-2 text-center mt-2 mb-0 fw-bold small">
-                        ✅ ตรวจสลิปผ่านแล้ว — กำลังปิดบิล...
-                      </div>
-                    )}
-                    <button type="submit" className="btn btn-danger w-100 fw-bold mt-2 d-inline-flex align-items-center justify-content-center gap-1" disabled={busy}><BellRing size={16} /> ปิดบิล</button>
-                  </form>
-                  )
-                )}
-
+                      <PromptPayQR
+                        amount={
+                          finalPay === "transfer"
+                            ? grandRemaining
+                            : finalPay === "mixed"
+                              ? Number(finalTransfer) || 0
+                              : 0
+                        }
+                        reservationId={reservation.id}
+                        onVerified={
+                          finalPay === "transfer" ? () => runAfterSlip("checkout") : undefined
+                        }
+                      />
+                      {autoRun === "checkout" && (
+                        <div className="alert alert-success py-2 text-center mt-2 mb-0 fw-bold small">
+                          ✅ ตรวจสลิปผ่านแล้ว — กำลังปิดบิล...
+                        </div>
+                      )}
+                      <button
+                        type="submit"
+                        className="btn btn-danger w-100 fw-bold mt-2 d-inline-flex align-items-center justify-content-center gap-1"
+                        disabled={busy}
+                      >
+                        <BellRing size={16} /> ปิดบิล
+                      </button>
+                    </form>
+                  ))}
               </div>
             </div>
           </div>
@@ -539,10 +923,22 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
         cancelLabel="ยังไม่ปิด"
         message={
           <div>
-            ปิดบิลของ <b className="text-primary">{reservation.customer_name}</b><br />
-            ยอดสุทธิ <b className="text-danger">{formatBaht(summary.total_due + productTotal)}</b> บาท
-            {finalPay === "credit" && <div className="text-warning small mt-2">⚠️ ลูกค้าค้างจ่าย {formatBaht(grandRemaining)} บาท</div>}
-            {finalPay === "points" && <div className="small mt-2" style={{ color: "#a855f7" }}>🎁 ลูกค้าแลกแต้ม — ไม่หักเงิน</div>}
+            ปิดบิลของ <b className="text-primary">{reservation.customer_name}</b>
+            <br />
+            ยอดสุทธิ <b className="text-danger">
+              {formatBaht(summary.total_due + productTotal)}
+            </b>{" "}
+            บาท
+            {finalPay === "credit" && (
+              <div className="text-warning small mt-2">
+                ⚠️ ลูกค้าค้างจ่าย {formatBaht(grandRemaining)} บาท
+              </div>
+            )}
+            {finalPay === "points" && (
+              <div className="small mt-2" style={{ color: "#a855f7" }}>
+                🎁 ร้านแถมให้ — ไม่หักเงิน ไม่หักแต้ม
+              </div>
+            )}
             {member && (
               <div className="small mt-2 text-success">
                 🎫 {member.name}
@@ -559,13 +955,23 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
   );
 }
 
-function PayModeRadio({ value, onChange, hideCredit, showPoints }: { value: PayMode; onChange: (v: PayMode) => void; hideCredit?: boolean; showPoints?: boolean }) {
+function PayModeRadio({
+  value,
+  onChange,
+  hideCredit,
+  showPoints,
+}: {
+  value: PayMode;
+  onChange: (v: PayMode) => void;
+  hideCredit?: boolean;
+  showPoints?: boolean;
+}) {
   const opts: { v: PayMode; label: string }[] = [
     ...(hideCredit ? [] : [{ v: "credit" as PayMode, label: "ค้างจ่าย" }]),
     { v: "transfer", label: "โอน" },
     { v: "cash", label: "เงินสด" },
     { v: "mixed", label: "ผสม" },
-    ...(showPoints ? [{ v: "points" as PayMode, label: "🎁 แลกแต้ม" }] : []),
+    ...(showPoints ? [{ v: "points" as PayMode, label: "🎁 แถมฟรี" }] : []),
   ];
 
   return (

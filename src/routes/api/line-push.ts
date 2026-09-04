@@ -51,10 +51,15 @@ export const Route = createFileRoute("/api/line-push")({
 
         const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
         if (!token) {
+          // แยกข้อความตามเซิร์ฟเวอร์ที่ตอบ เพราะวิธีแก้คนละทางกัน:
+          // เครื่องร้านแก้ที่ไฟล์ .env ส่วนเว็บที่ deploy ต้องไปตั้งที่โฮสต์
+          const host = new URL(request.url).host;
+          const isLocal = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host);
           return json(200, {
             ok: false,
-            error:
-              "ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์ — ใส่ใน .env แล้วรีสตาร์ต",
+            error: isLocal
+              ? "ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์ — ใส่ใน .env แล้วรีสตาร์ต"
+              : `เว็บที่ deploy (${host}) ยังไม่มี LINE_CHANNEL_ACCESS_TOKEN — ไฟล์ .env ไม่ได้ขึ้น git ต้องไปใส่ใน Environment variables ของโฮสต์แล้ว deploy ใหม่`,
           });
         }
 

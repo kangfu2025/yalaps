@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Gauge,
   Activity,
+  Server,
 } from "lucide-react";
 import {
   getLineConfig,
@@ -220,11 +221,38 @@ export function LineSettingsPanel() {
           <Save size={15} /> ตั้งค่าฝั่งเซิร์ฟเวอร์
         </div>
         <div className="small text-muted" style={{ lineHeight: 1.9 }}>
-          Channel access token ไม่ได้เก็บในฐานข้อมูล เพราะพนักงานทุกคนอ่านตารางนี้ได้ — ต้องใส่เป็น
-          environment variable ชื่อ <code>LINE_CHANNEL_ACCESS_TOKEN</code> ในไฟล์ <code>.env</code>{" "}
-          แล้วรีสตาร์ตเซิร์ฟเวอร์ (หรือตั้งใน environment variables ของโฮสต์)
+          Channel access token ไม่ได้เก็บในฐานข้อมูล เพราะพนักงานทุกคนอ่านตารางนี้ได้ — เก็บเป็น
+          environment variable ชื่อ <code>LINE_CHANNEL_ACCESS_TOKEN</code> แทน
+        </div>
+        <div className="alert alert-warning small mt-2 mb-0" style={{ lineHeight: 1.9 }}>
+          <b>ต้องตั้งค่า 2 ที่ แยกกัน</b>
+          <div className="mt-1">
+            <b>1. เครื่องที่ร้าน</b> — ใส่ในไฟล์ <code>.env</code> แล้วรีสตาร์ต{" "}
+            <code>npm run dev</code>
+          </div>
+          <div>
+            <b>2. เว็บที่ deploy</b> — ไฟล์ <code>.env</code> ถูกกันไม่ให้ขึ้น git
+            โทเคนจึงไม่ได้ตามไปด้วย ต้องไปใส่ที่หน้าตั้งค่าของโฮสต์ (Lovable / Cloudflare / Vercel)
+            หัวข้อ <b>Environment variables</b> หรือ <b>Secrets</b> แล้ว deploy ใหม่
+          </div>
+          <div className="mt-1">
+            ตัวที่ต้องใส่ครบ: <code>LINE_CHANNEL_ACCESS_TOKEN</code>, <code>EASYSLIP_API_KEY</code>,{" "}
+            <code>YALA_SERVICE_ROLE_KEY</code> — กดปุ่ม <b>ตรวจโทเคน</b> บนเว็บที่ deploy
+            จะบอกว่าตัวไหนยังขาด
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** บอกว่าคำตอบนี้มาจากเซิร์ฟเวอร์ตัวไหน — กันสับสนระหว่างเครื่องร้านกับเว็บที่ deploy */
+function ServerLine({ server }: { server?: { host: string; isLocal: boolean } }) {
+  if (!server) return null;
+  return (
+    <div className="text-muted mt-1">
+      <Server size={13} /> เซิร์ฟเวอร์ที่ตอบ: <b>{server.host}</b>{" "}
+      {server.isLocal ? "(เครื่องที่ร้าน)" : "(เว็บที่ deploy)"}
     </div>
   );
 }
@@ -242,6 +270,7 @@ function StatusBox({ status }: { status: LineStatus }) {
           {status.bot?.basicId ? ` (${status.bot.basicId})` : ""}
         </div>
         {status.quota?.value != null && <div>โควตาเดือนนี้: {status.quota.value} ข้อความ</div>}
+        <ServerLine server={status.server} />
         <div className="text-muted mt-1">
           ถ้าส่งทดสอบแล้วยังไม่เข้า แปลว่าปลายทาง (User ID) ผิด หรือยังไม่ได้เพิ่ม OA นี้เป็นเพื่อน
         </div>
@@ -260,6 +289,17 @@ function StatusBox({ status }: { status: LineStatus }) {
           โทเคนที่เซิร์ฟเวอร์อ่านได้: ยาว <b>{status.shape.length}</b> ตัวอักษร ·{" "}
           {status.shape.preview}
           {status.shape.hasWhitespace && " · มีช่องว่างปนอยู่"}
+        </div>
+      )}
+      <ServerLine server={status.server} />
+      {status.otherSecrets && (
+        <div className="mt-2">
+          คีย์อื่นบนเซิร์ฟเวอร์ตัวนี้:{" "}
+          {Object.entries(status.otherSecrets).map(([k, present]) => (
+            <span key={k} className={`badge me-1 ${present ? "bg-success" : "bg-secondary"}`}>
+              {k} {present ? "✓" : "✗"}
+            </span>
+          ))}
         </div>
       )}
       {status.hints && status.hints.length > 0 && (

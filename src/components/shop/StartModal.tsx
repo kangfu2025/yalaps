@@ -6,7 +6,16 @@ import { PromptPayQR } from "./PromptPayQR";
 import { pushDisplay, clearDisplay, toHHMM, type PaymentMethod } from "@/lib/customerDisplay";
 import { getZonePrice, type Promotion } from "@/lib/promotions";
 import { MemberSearch } from "./MemberSearch";
-import { getPointsConfig, pointsForPlay, DEFAULT_POINTS_CONFIG, type Member, type PointsConfig } from "@/lib/members";
+import {
+  getPointsConfig,
+  pointsForPlay,
+  canRedeemZone,
+  DEFAULT_POINTS_CONFIG,
+  type Member,
+  type PointsConfig,
+} from "@/lib/members";
+import { freeHourValue } from "@/lib/billing";
+import { Gift } from "lucide-react";
 
 function payModeToMethod(m: "cash" | "transfer" | "mixed" | "credit"): PaymentMethod {
   return m === "transfer" ? "promptpay" : m;
@@ -33,12 +42,19 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
   // ชื่อในช่องนี้มาจากข้อมูลสมาชิกหรือพนักงานพิมพ์เอง (ใช้ตัดสินใจตอนถอดสมาชิกออก)
   const [nameFromMember, setNameFromMember] = useState(false);
   const [autoStarting, setAutoStarting] = useState(false);
+  const [useFreeHour, setUseFreeHour] = useState(false);
 
-  useEffect(() => { getPointsConfig().then(setCfg).catch(() => {}); }, []);
+  useEffect(() => {
+    getPointsConfig()
+      .then(setCfg)
+      .catch(() => {});
+  }, []);
 
   /** ค้นเจอสมาชิก -> เติมชื่อให้อัตโนมัติ, ถอดสมาชิกออก -> ล้างชื่อที่เติมให้ */
   function handleMemberChange(m: Member | null) {
     setMember(m);
+    // ถอดสมาชิกออกแล้วต้องยกเลิกการแลกแต้มด้วย ไม่งั้นจะได้ส่วนลดโดยไม่มีเจ้าของแต้ม
+    if (!m) setUseFreeHour(false);
     if (m) {
       setName(m.name);
       setNameFromMember(true);
@@ -60,9 +76,18 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
   }
 
   const override = machine && promotion ? getZonePrice(machine.zone, promotion) : null;
-  const price = machine ? calcPrice(machine.zone, hours, override) : 0;
-  const qrAmount =
-    payMode === "transfer" ? price : payMode === "mixed" ? Number(transfer) || 0 : 0;
+  const fullPrice = machine ? calcPrice(machine.zone, hours, override) : 0;
+
+  // แลกแต้มได้ก็ต่อเมื่อ: เป็นสมาชิก + โซนนี้แลกได้ + แต้มถึงจริง ๆ
+  // เงื่อนไขสุดท้ายคือจุดที่เคยขาด ทำให้สมาชิกแต้มไม่พอกดแลกได้
+  const zoneRedeemable = machine ? canRedeemZone(machine.zone, cfg) : false;
+  const canRedeem = !!member && zoneRedeemable && member.points >= cfg.redeem_cost;
+  const redeemActive = useFreeHour && canRedeem;
+  // ส่วนลดหักได้ไม่เกินค่าบริการ (เล่น 1 ชม. แล้วแลกฟรี 1 ชม. = จ่าย 0 ไม่ใช่ติดลบ)
+  const redeemValue = machine ? Math.min(freeHourValue(machine.zone, promotion), fullPrice) : 0;
+  const price = Math.max(0, fullPrice - (redeemActive ? redeemValue : 0));
+
+  const qrAmount = payMode === "transfer" ? price : payMode === "mixed" ? Number(transfer) || 0 : 0;
 
   useEffect(() => {
     if (!machine) return;
@@ -73,6 +98,7 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
     setTransfer("");
     setMember(null);
     setNameFromMember(false);
+    setUseFreeHour(false);
   }, [machine]);
 
   useEffect(() => {
@@ -94,9 +120,11 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
       message:
         payMode === "credit"
           ? `เปิดเครื่อง ${hours} ชม. (ค้างจ่าย)`
-          : `เปิดเครื่อง ${hours} ชม.`,
+          : redeemActive
+            ? `เปิดเครื่อง ${hours} ชม. · แลกแต้มฟรี 1 ชม.`
+            : `เปิดเครื่อง ${hours} ชม.`,
     });
-  }, [machine, name, hours, payMode, qrAmount, price]);
+  }, [machine, name, hours, payMode, qrAmount, price, redeemActive]);
 
   if (!machine) return null;
 
@@ -126,6 +154,10 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
         advanceCash: finalCash,
         advanceTransfer: finalTransfer,
         memberId: member?.id ?? null,
+        // ฐานข้อมูลตรวจแต้มซ้ำอีกชั้น ถ้าแต้มไม่พอจะโยน error ออกมา
+        // และยังไม่มีบิลถูกสร้าง พนักงานเก็บเงินเต็มแล้วเปิดใหม่ได้เลย
+        useFreeHour: redeemActive,
+        freeHourValue: redeemValue,
       });
       // เปิดอัตโนมัติหลังตรวจสลิป: ปล่อยให้จอลูกค้าโชว์ "ชำระเงินเรียบร้อย" ต่อจนครบเวลา
       if (!opts.keepDisplay) await clearDisplay();
@@ -144,7 +176,14 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
       <div className="modal-custom" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header bg-success text-white">
           <h5 className="modal-title fw-bold m-0">🟢 เริ่มต้นบันทึกเวลาเปิดเครื่อง</h5>
-          <button type="button" className="btn-close btn-close-white" onClick={() => { clearDisplay(); onClose(); }} />
+          <button
+            type="button"
+            className="btn-close btn-close-white"
+            onClick={() => {
+              clearDisplay();
+              onClose();
+            }}
+          />
         </div>
         <form onSubmit={handleSubmit} className="p-4">
           <div className="alert alert-info py-2">
@@ -156,9 +195,43 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
             <label className="form-label fw-bold">🎫 เบอร์โทรสมาชิก</label>
             <MemberSearch value={member} onChange={handleMemberChange} defaultName={name} />
             {member ? (
-              <div className="small text-success mt-1">
-                บิลนี้จะได้ <b>{pointsForPlay(machine.zone, { hours }, cfg)}</b> แต้ม เมื่อปิดบิล
-              </div>
+              <>
+                <div className="small mt-1 d-flex flex-wrap gap-2 align-items-center">
+                  <span className="text-success">
+                    บิลนี้จะได้ <b>{pointsForPlay(machine.zone, { hours }, cfg)}</b> แต้ม
+                    เมื่อปิดบิล
+                  </span>
+                  <span className="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                    แต้มคงเหลือ {member.points}
+                  </span>
+                </div>
+
+                {zoneRedeemable ? (
+                  <div className="form-check mt-2">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="startFreeHour"
+                      checked={redeemActive}
+                      disabled={!canRedeem}
+                      onChange={(e) => setUseFreeHour(e.target.checked)}
+                    />
+                    <label className="form-check-label small" htmlFor="startFreeHour">
+                      <Gift size={13} className="text-warning" /> ใช้ <b>{cfg.redeem_cost}</b> แต้ม
+                      แลกเล่นฟรี 1 ชม.{" "}
+                      <span className="text-danger">(-{formatBaht(redeemValue)} บ.)</span>
+                      {!canRedeem && (
+                        <span className="text-muted">
+                          {" "}
+                          — แต้มไม่พอ (มี {member.points} ต้องใช้ {cfg.redeem_cost})
+                        </span>
+                      )}
+                    </label>
+                  </div>
+                ) : (
+                  <div className="small text-muted mt-1">โซนนี้ยังแลกแต้มไม่ได้</div>
+                )}
+              </>
             ) : (
               <div className="small text-muted mt-1">
                 ลูกค้าแจ้งเบอร์โทร ระบบจะดึงชื่อมาใส่ให้อัตโนมัติ — ไม่ใช่สมาชิกก็ข้ามได้
@@ -201,8 +274,22 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
               ))}
             </select>
             <div className="text-center mt-2">
+              {redeemActive && (
+                <div className="small text-muted">
+                  ค่าบริการ {formatBaht(fullPrice)} − แลกแต้ม {formatBaht(redeemValue)}
+                </div>
+              )}
               💰 ค่าบริการเริ่มต้น: <b className="text-danger">{formatBaht(price)}</b> บาท
-              {promotion && <div className="small text-success mt-1">🎉 ใช้โปร: <b>{promotion.name}</b></div>}
+              {redeemActive && (
+                <div className="small mt-1" style={{ color: "#a855f7" }}>
+                  🎁 ใช้ {cfg.redeem_cost} แต้มแลกเล่นฟรี 1 ชม. — หักแต้มตอนกดเปิดเครื่อง
+                </div>
+              )}
+              {promotion && (
+                <div className="small text-success mt-1">
+                  🎉 ใช้โปร: <b>{promotion.name}</b>
+                </div>
+              )}
             </div>
           </div>
 
@@ -254,7 +341,14 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
           )}
 
           <div className="modal-footer border-0 mt-3">
-            <button type="button" className="btn btn-secondary" onClick={() => { clearDisplay(); onClose(); }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                clearDisplay();
+                onClose();
+              }}
+            >
               ปิด
             </button>
             <button type="submit" className="btn btn-success fw-bold" disabled={busy}>
@@ -278,7 +372,12 @@ function PayModeRadio({ value, onChange }: { value: PayMode; onChange: (v: PayMo
     <div className="radio-box">
       {opts.map((o) => (
         <label key={o.v} className="radio-item">
-          <input type="radio" name="startPayMode" checked={value === o.v} onChange={() => onChange(o.v)} />
+          <input
+            type="radio"
+            name="startPayMode"
+            checked={value === o.v}
+            onChange={() => onChange(o.v)}
+          />
           {o.label}
         </label>
       ))}

@@ -134,6 +134,10 @@ export interface LineStatus {
   httpStatus?: number;
   error?: string;
   hints?: string[];
+  /** เซิร์ฟเวอร์ตัวที่ตอบคำขอนี้ — แยก "เครื่องร้าน" กับ "เว็บที่ deploy" ให้เห็นชัด */
+  server?: { host: string; isLocal: boolean };
+  /** คีย์ลับอื่นบนเซิร์ฟเวอร์ตัวเดียวกัน (บอกแค่ว่ามีหรือไม่มี ไม่บอกค่า) */
+  otherSecrets?: Record<string, boolean>;
   shape?: { length: number; preview: string; looksJwt: boolean; hasWhitespace: boolean };
   bot?: { displayName?: string; basicId?: string; userId?: string; premiumId?: string };
   quota?: { type?: string; value?: number };

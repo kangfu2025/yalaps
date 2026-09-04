@@ -12,7 +12,10 @@ export interface CheckoutInput {
   finalCash: number;
   finalTransfer: number;
   promotion?: Promotion | null;
-  /** จ่ายด้วยการแลกแต้ม (พนักงานคอมพ์ทั้งบิล) — ของเดิม ไม่เกี่ยวกับแต้มสมาชิก */
+  /**
+   * ร้านแถมให้ทั้งบิล (คอมพ์) — ไม่คิดเงิน ไม่แตะแต้มสมาชิก
+   * คนละเรื่องกับ useFreeHour ด้านล่างซึ่งเป็นการแลกแต้มจริง
+   */
   redeemedPoints?: boolean;
   /** สมาชิกที่ผูกกับบิลนี้ (ถ้ามี) */
   member?: Member | null;
@@ -77,10 +80,15 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
   const r = input.reservation;
   const memberId = input.member?.id ?? r.member_id ?? null;
 
-  // 1) แลกแต้มก่อน — ขั้นนี้ล้มเหลวได้ (แต้มไม่พอ) จึงต้องทำก่อนปิดบิล
-  let pointsSpent = 0;
-  let discount = 0;
-  if (input.useFreeHour && memberId) {
+  // 1) แลกแต้ม — ขั้นนี้ล้มเหลวได้ (แต้มไม่พอ) จึงต้องทำก่อนปิดบิล
+  //
+  // บิลที่แลกแต้มไปแล้วตั้งแต่ตอนเปิดเครื่อง จะมี points_spent ติดมากับบิล
+  // ต้องให้ส่วนลดต่อ (ไม่งั้นตอนปิดบิลจะคิดเงินเต็มอีกรอบ) และห้ามหักแต้มซ้ำ
+  const spentAtStart = Number(r.points_spent) || 0;
+  let pointsSpent = spentAtStart;
+  let discount = spentAtStart > 0 ? Number(r.points_discount) || 0 : 0;
+
+  if (input.useFreeHour && memberId && spentAtStart === 0) {
     const res = await redeemFreeHour({ memberId, zone: r.zone, reservationId: r.id });
     if (!res.ok) throw new Error(res.message || "ใช้แต้มไม่สำเร็จ");
     pointsSpent = Number(res.cost) || 0;

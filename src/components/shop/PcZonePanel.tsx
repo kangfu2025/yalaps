@@ -1,5 +1,20 @@
 import { useEffect, useState } from "react";
-import { Monitor, Lock, Unlock, ShieldAlert, Power, AlertTriangle, User, Timer, Play, StopCircle, XCircle, Wifi, WifiOff, Plus } from "lucide-react";
+import {
+  Monitor,
+  Lock,
+  Unlock,
+  ShieldAlert,
+  Power,
+  AlertTriangle,
+  User,
+  Timer,
+  Play,
+  StopCircle,
+  XCircle,
+  Wifi,
+  WifiOff,
+  Plus,
+} from "lucide-react";
 
 const CMD_LABEL: Record<string, string> = {
   lock: "ล็อกหน้าจอ",
@@ -9,27 +24,63 @@ const CMD_LABEL: Record<string, string> = {
   show_countdown: "แสดงนับถอยหลัง",
   end_session: "จบ session",
 };
-import { supabase, type Machine, type PcAgent, type PcCommand, type PcCommandType, type PcSession } from "@/lib/supabase";
-import { sendPcCommand, listAgents, listRecentPcCommands, isAgentOnline, startPcSession, extendPcSession, endPcSession, cancelPcSession, calcPcPrice, setPcSessionMember } from "@/lib/pcControl";
+import {
+  supabase,
+  type Machine,
+  type PcAgent,
+  type PcCommand,
+  type PcCommandType,
+  type PcSession,
+} from "@/lib/supabase";
+import {
+  sendPcCommand,
+  listAgents,
+  listRecentPcCommands,
+  isAgentOnline,
+  startPcSession,
+  extendPcSession,
+  endPcSession,
+  cancelPcSession,
+  calcPcPrice,
+  setPcSessionMember,
+} from "@/lib/pcControl";
 import { useAuth } from "@/lib/auth";
 import { formatBaht } from "@/lib/priceEngine";
 import { MemberSearch } from "./MemberSearch";
 import {
-  getMember, getPointsConfig, pointsForPlay,
-  DEFAULT_POINTS_CONFIG, type Member, type PointsConfig,
+  getMember,
+  getPointsConfig,
+  pointsForPlay,
+  DEFAULT_POINTS_CONFIG,
+  type Member,
+  type PointsConfig,
 } from "@/lib/members";
-import { listOpenSalesForBill, settleSalesForBill, cancelSalesForBill, type ProductSale, type ProductSaleItem } from "@/lib/products";
+import {
+  listOpenSalesForBill,
+  settleSalesForBill,
+  cancelSalesForBill,
+  type ProductSale,
+  type ProductSaleItem,
+} from "@/lib/products";
 import { PromptPayQR } from "./PromptPayQR";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 type PayMode = "cash" | "transfer" | "mixed" | "points" | "credit";
 
-function PayModeRadio({ value, onChange, name }: { value: PayMode; onChange: (v: PayMode) => void; name: string }) {
+function PayModeRadio({
+  value,
+  onChange,
+  name,
+}: {
+  value: PayMode;
+  onChange: (v: PayMode) => void;
+  name: string;
+}) {
   const opts: { v: PayMode; label: string }[] = [
     { v: "cash", label: "💵 เงินสด" },
     { v: "transfer", label: "📱 โอน" },
     { v: "mixed", label: "🔀 ผสม" },
-    { v: "points", label: "🎁 แลกแต้ม" },
+    { v: "points", label: "🎁 แถมฟรี" },
     { v: "credit", label: "🧾 ค้างจ่าย" },
   ];
   return (
@@ -43,7 +94,6 @@ function PayModeRadio({ value, onChange, name }: { value: PayMode; onChange: (v:
     </div>
   );
 }
-
 
 function fmtRemaining(ms: number): string {
   const clamped = Math.max(0, ms);
@@ -64,7 +114,6 @@ function fmtAgo(iso: string | null | undefined): string {
   return `${Math.round(min / 60)} ชั่วโมงที่แล้ว`;
 }
 
-
 interface Props {
   machines: Machine[];
 }
@@ -80,7 +129,9 @@ export function PcZonePanel({ machines }: Props) {
   const [endTarget, setEndTarget] = useState<{ m: Machine; s: PcSession } | null>(null);
   const [lockTarget, setLockTarget] = useState<Machine | null>(null);
   const [cancelTarget, setCancelTarget] = useState<{ m: Machine; s: PcSession } | null>(null);
-  const [cmdTarget, setCmdTarget] = useState<{ m: Machine | null; type: PcCommandType } | null>(null);
+  const [cmdTarget, setCmdTarget] = useState<{ m: Machine | null; type: PcCommandType } | null>(
+    null,
+  );
   const [, setNow] = useState(Date.now());
 
   async function load() {
@@ -96,13 +147,17 @@ export function PcZonePanel({ machines }: Props) {
 
   useEffect(() => {
     load();
-    const ch = supabase.channel("pc-rt")
+    const ch = supabase
+      .channel("pc-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "pc_agents" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "pc_sessions" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "pc_commands" }, () => load())
       .subscribe();
     const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => { supabase.removeChannel(ch); clearInterval(t); };
+    return () => {
+      supabase.removeChannel(ch);
+      clearInterval(t);
+    };
   }, []);
 
   async function runCommand(target: Machine | null, type: PcCommandType) {
@@ -115,16 +170,19 @@ export function PcZonePanel({ machines }: Props) {
     }
   }
 
-
   if (machines.length === 0) {
-    return <div className="alert alert-info">ยังไม่มีเครื่อง PC ในระบบ — รัน SQL migration แล้วรีเฟรช</div>;
+    return (
+      <div className="alert alert-info">
+        ยังไม่มีเครื่อง PC ในระบบ — รัน SQL migration แล้วรีเฟรช
+      </div>
+    );
   }
 
   return (
     <>
       <div className="alert alert-secondary py-2 small">
-        <b>🖥️ โซน PC:</b> เลือกเวลาที่ลูกค้าต้องการเล่น แล้วกด "เริ่ม" — Agent บนเครื่อง PC จะปลดล็อกอัตโนมัติ
-        เมื่อครบเวลาจะกลับสู่หน้าจอ YALA PLAYSTATION โดยอัตโนมัติ
+        <b>🖥️ โซน PC:</b> เลือกเวลาที่ลูกค้าต้องการเล่น แล้วกด "เริ่ม" — Agent บนเครื่อง PC
+        จะปลดล็อกอัตโนมัติ เมื่อครบเวลาจะกลับสู่หน้าจอ YALA PLAYSTATION โดยอัตโนมัติ
       </div>
 
       <div className="pcz-grid">
@@ -155,7 +213,6 @@ export function PcZonePanel({ machines }: Props) {
                     <span className={`pcz-dot ${online ? "live" : ""}`} />
                     {online ? "Online" : "Offline"}
                   </span>
-
                 </div>
                 <div className="pcz-icon-chip">
                   {session ? <Monitor size={15} /> : <Lock size={15} />}
@@ -189,16 +246,28 @@ export function PcZonePanel({ machines }: Props) {
                   </div>
 
                   <div className="pcz-actions">
-                    <button className="pcz-btn pcz-btn-cyan" onClick={() => setExtendTarget({ m, s: session })}>
+                    <button
+                      className="pcz-btn pcz-btn-cyan"
+                      onClick={() => setExtendTarget({ m, s: session })}
+                    >
                       <Plus size={14} /> เพิ่มเวลา
                     </button>
-                    <button className="pcz-btn pcz-btn-amber" onClick={() => sendPcCommand(m.id, "warn", { minutes: 5 })}>
+                    <button
+                      className="pcz-btn pcz-btn-amber"
+                      onClick={() => sendPcCommand(m.id, "warn", { minutes: 5 })}
+                    >
                       <AlertTriangle size={14} /> เตือน 5 นาที
                     </button>
-                    <button className="pcz-btn pcz-btn-red pcz-wide" onClick={() => setEndTarget({ m, s: session })}>
+                    <button
+                      className="pcz-btn pcz-btn-red pcz-wide"
+                      onClick={() => setEndTarget({ m, s: session })}
+                    >
                       <StopCircle size={14} /> ปิดเครื่อง / เช็คบิล
                     </button>
-                    <button className="pcz-btn pcz-wide" onClick={() => setCancelTarget({ m, s: session })}>
+                    <button
+                      className="pcz-btn pcz-wide"
+                      onClick={() => setCancelTarget({ m, s: session })}
+                    >
                       <XCircle size={14} /> ยกเลิกบิล
                     </button>
                   </div>
@@ -210,7 +279,10 @@ export function PcZonePanel({ machines }: Props) {
                     ล็อกอยู่ — กด "เริ่มเปิดเครื่อง" เพื่อเปิดให้ลูกค้า
                   </div>
                   <div className="pcz-actions">
-                    <button className="pcz-btn pcz-btn-solid pcz-wide" onClick={() => setStartTarget(m)}>
+                    <button
+                      className="pcz-btn pcz-btn-solid pcz-wide"
+                      onClick={() => setStartTarget(m)}
+                    >
                       <Play size={15} /> เริ่มเปิดเครื่อง
                     </button>
                     {isAdmin && (
@@ -256,27 +328,40 @@ export function PcZonePanel({ machines }: Props) {
             return (
               <div className="pcz-row" key={m.id}>
                 <div className="d-flex align-items-center gap-2 flex-wrap">
-                  <b style={{ fontSize: ".9rem" }}>PC-{String(m.machine_number).padStart(2, "0")}</b>
+                  <b style={{ fontSize: ".9rem" }}>
+                    PC-{String(m.machine_number).padStart(2, "0")}
+                  </b>
                   <span className={`pcz-pill ${online ? "pcz-pill-on" : "pcz-pill-off"}`}>
                     <span className={`pcz-dot ${online ? "live" : ""}`} />
                     {online ? "Online" : "Offline"}
                   </span>
                   <span className="small text-muted">
-                    {agent ? `Agent v${agent.agent_version ?? "?"} · heartbeat ${fmtAgo(agent.last_heartbeat)}` : "ยังไม่เคยเชื่อมต่อ (Agent ไม่ได้รัน?)"}
+                    {agent
+                      ? `Agent v${agent.agent_version ?? "?"} · heartbeat ${fmtAgo(agent.last_heartbeat)}`
+                      : "ยังไม่เคยเชื่อมต่อ (Agent ไม่ได้รัน?)"}
                   </span>
                 </div>
 
                 <div className="d-flex gap-2 flex-wrap justify-content-end">
-                  <button className="pcz-btn pcz-btn-amber" disabled={!online}
-                    onClick={() => setCmdTarget({ m, type: "lock" })}>
+                  <button
+                    className="pcz-btn pcz-btn-amber"
+                    disabled={!online}
+                    onClick={() => setCmdTarget({ m, type: "lock" })}
+                  >
                     <Lock size={13} /> ล็อก
                   </button>
-                  <button className="pcz-btn pcz-btn-green" disabled={!online}
-                    onClick={() => setCmdTarget({ m, type: "unlock" })}>
+                  <button
+                    className="pcz-btn pcz-btn-green"
+                    disabled={!online}
+                    onClick={() => setCmdTarget({ m, type: "unlock" })}
+                  >
                     <Unlock size={13} /> ปลดล็อก
                   </button>
-                  <button className="pcz-btn pcz-btn-red" disabled={!online}
-                    onClick={() => setCmdTarget({ m, type: "shutdown" })}>
+                  <button
+                    className="pcz-btn pcz-btn-red"
+                    disabled={!online}
+                    onClick={() => setCmdTarget({ m, type: "shutdown" })}
+                  >
                     <Power size={13} /> ปิดเครื่อง
                   </button>
                 </div>
@@ -285,10 +370,16 @@ export function PcZonePanel({ machines }: Props) {
           })}
 
           <div className="d-flex gap-2 flex-wrap my-3">
-            <button className="pcz-btn pcz-btn-amber" onClick={() => setCmdTarget({ m: null, type: "lock" })}>
+            <button
+              className="pcz-btn pcz-btn-amber"
+              onClick={() => setCmdTarget({ m: null, type: "lock" })}
+            >
               <Lock size={14} /> ล็อกทุกเครื่อง
             </button>
-            <button className="pcz-btn pcz-btn-red" onClick={() => setCmdTarget({ m: null, type: "shutdown" })}>
+            <button
+              className="pcz-btn pcz-btn-red"
+              onClick={() => setCmdTarget({ m: null, type: "shutdown" })}
+            >
               <Power size={14} /> ปิดทุกเครื่อง
             </button>
           </div>
@@ -304,13 +395,18 @@ export function PcZonePanel({ machines }: Props) {
                 const stale = !c.ack_at && ageSec > 30;
                 return (
                   <li key={c.id}>
-                    <span>PC-{mm ? String(mm.machine_number).padStart(2, "0") : "??"} · <b>{CMD_LABEL[c.type] ?? c.type}</b></span>
+                    <span>
+                      PC-{mm ? String(mm.machine_number).padStart(2, "0") : "??"} ·{" "}
+                      <b>{CMD_LABEL[c.type] ?? c.type}</b>
+                    </span>
                     <span className="text-muted">
                       {new Date(c.created_at).toLocaleString("th-TH")}{" "}
                       {c.ack_at ? (
                         <span style={{ color: "var(--g-green)" }}>✓ ตอบรับแล้ว</span>
                       ) : stale ? (
-                        <span style={{ color: "var(--g-red, #ef4444)" }}>⚠ ไม่ตอบรับ (เครื่องอาจไม่ได้รัน Agent)</span>
+                        <span style={{ color: "var(--g-red, #ef4444)" }}>
+                          ⚠ ไม่ตอบรับ (เครื่องอาจไม่ได้รัน Agent)
+                        </span>
                       ) : (
                         <span style={{ color: "var(--g-amber)" }}>… รอตอบรับ</span>
                       )}
@@ -318,12 +414,10 @@ export function PcZonePanel({ machines }: Props) {
                   </li>
                 );
               })}
-
             </ul>
           )}
         </div>
       )}
-
 
       <ConfirmDialog
         open={!!cmdTarget}
@@ -332,16 +426,21 @@ export function PcZonePanel({ machines }: Props) {
         variant={cmdTarget?.type === "shutdown" ? "danger" : "warning"}
         confirmLabel="ยืนยันส่งคำสั่ง"
         cancelLabel="ยกเลิก"
-        message={cmdTarget ? (
-          <div>
-            {CMD_LABEL[cmdTarget.type] ?? cmdTarget.type}{" "}
-            <b className="text-primary">
-              {cmdTarget.m ? `PC ${cmdTarget.m.machine_number}` : "ทุกเครื่อง PC"}
-            </b>?
-            <br />
-            <span className="text-muted small">คำสั่งจะถูกส่งไปยัง Agent ทันที</span>
-          </div>
-        ) : ""}
+        message={
+          cmdTarget ? (
+            <div>
+              {CMD_LABEL[cmdTarget.type] ?? cmdTarget.type}{" "}
+              <b className="text-primary">
+                {cmdTarget.m ? `PC ${cmdTarget.m.machine_number}` : "ทุกเครื่อง PC"}
+              </b>
+              ?
+              <br />
+              <span className="text-muted small">คำสั่งจะถูกส่งไปยัง Agent ทันที</span>
+            </div>
+          ) : (
+            ""
+          )
+        }
         onConfirm={async () => {
           if (!cmdTarget) return;
           const t = cmdTarget;
@@ -351,12 +450,14 @@ export function PcZonePanel({ machines }: Props) {
         onCancel={() => setCmdTarget(null)}
       />
 
-
       {startTarget && (
         <StartPcModal
           machine={startTarget}
           onClose={() => setStartTarget(null)}
-          onSuccess={() => { setStartTarget(null); load(); }}
+          onSuccess={() => {
+            setStartTarget(null);
+            load();
+          }}
         />
       )}
 
@@ -365,7 +466,10 @@ export function PcZonePanel({ machines }: Props) {
           machine={extendTarget.m}
           session={extendTarget.s}
           onClose={() => setExtendTarget(null)}
-          onSuccess={() => { setExtendTarget(null); load(); }}
+          onSuccess={() => {
+            setExtendTarget(null);
+            load();
+          }}
         />
       )}
 
@@ -374,7 +478,10 @@ export function PcZonePanel({ machines }: Props) {
           machine={endTarget.m}
           session={endTarget.s}
           onClose={() => setEndTarget(null)}
-          onSuccess={() => { setEndTarget(null); load(); }}
+          onSuccess={() => {
+            setEndTarget(null);
+            load();
+          }}
         />
       )}
 
@@ -385,12 +492,18 @@ export function PcZonePanel({ machines }: Props) {
         variant="warning"
         confirmLabel="ล็อกเลย"
         cancelLabel="ยกเลิก"
-        message={lockTarget ? (
-          <div>
-            สั่งล็อกหน้าจอ PC {lockTarget.machine_number}?<br />
-            <span className="text-muted small">Agent จะแสดงหน้าจอ YALA PLAYSTATION ทันที (ไม่กระทบ session ที่ทำงานอยู่)</span>
-          </div>
-        ) : ""}
+        message={
+          lockTarget ? (
+            <div>
+              สั่งล็อกหน้าจอ PC {lockTarget.machine_number}?<br />
+              <span className="text-muted small">
+                Agent จะแสดงหน้าจอ YALA PLAYSTATION ทันที (ไม่กระทบ session ที่ทำงานอยู่)
+              </span>
+            </div>
+          ) : (
+            ""
+          )
+        }
         onConfirm={async () => {
           if (!lockTarget) return;
           try {
@@ -410,13 +523,26 @@ export function PcZonePanel({ machines }: Props) {
         variant="danger"
         confirmLabel="ยกเลิกบิลเลย"
         cancelLabel="ไม่ยกเลิก"
-        message={cancelTarget ? (
-          <div>
-            ยกเลิกบิลของ <b className="text-primary">{cancelTarget.s.customer_name || `ลูกค้า PC ${cancelTarget.m.machine_number}`}</b><br />
-            <span className="text-muted small">🖥️ PC เครื่อง {cancelTarget.m.machine_number}</span><br />
-            <span className="text-warning small">⚠️ ยอดทั้งหมดจะไม่ถูกนับเป็นรายได้ และเครื่องจะกลับไปล็อกหน้าจอ</span>
-          </div>
-        ) : ""}
+        message={
+          cancelTarget ? (
+            <div>
+              ยกเลิกบิลของ{" "}
+              <b className="text-primary">
+                {cancelTarget.s.customer_name || `ลูกค้า PC ${cancelTarget.m.machine_number}`}
+              </b>
+              <br />
+              <span className="text-muted small">
+                🖥️ PC เครื่อง {cancelTarget.m.machine_number}
+              </span>
+              <br />
+              <span className="text-warning small">
+                ⚠️ ยอดทั้งหมดจะไม่ถูกนับเป็นรายได้ และเครื่องจะกลับไปล็อกหน้าจอ
+              </span>
+            </div>
+          ) : (
+            ""
+          )
+        }
         onConfirm={async () => {
           if (!cancelTarget) return;
           const t = cancelTarget;
@@ -440,7 +566,15 @@ const DURATION_PRESETS = [
   { label: "2 ชั่วโมง", minutes: 120 },
 ];
 
-function StartPcModal({ machine, onClose, onSuccess }: { machine: Machine; onClose: () => void; onSuccess: () => void }) {
+function StartPcModal({
+  machine,
+  onClose,
+  onSuccess,
+}: {
+  machine: Machine;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
   const [minutes, setMinutes] = useState<number>(60);
   const [custom, setCustom] = useState<string>("");
   const [name, setName] = useState("");
@@ -451,7 +585,11 @@ function StartPcModal({ machine, onClose, onSuccess }: { machine: Machine; onClo
   const [member, setMember] = useState<Member | null>(null);
   const [cfg, setCfg] = useState<PointsConfig>(DEFAULT_POINTS_CONFIG);
   const [nameFromMember, setNameFromMember] = useState(false);
-  useEffect(() => { getPointsConfig().then(setCfg).catch(() => {}); }, []);
+  useEffect(() => {
+    getPointsConfig()
+      .then(setCfg)
+      .catch(() => {});
+  }, []);
 
   /** ค้นเจอสมาชิก -> เติมชื่อให้อัตโนมัติ, ถอดสมาชิกออก -> ล้างชื่อที่เติมให้ */
   function handleMemberChange(m: Member | null) {
@@ -465,11 +603,9 @@ function StartPcModal({ machine, onClose, onSuccess }: { machine: Machine; onClo
     }
   }
 
-  const finalMinutes = minutes === 0 ? (parseInt(custom, 10) || 0) : minutes;
+  const finalMinutes = minutes === 0 ? parseInt(custom, 10) || 0 : minutes;
   const price = calcPcPrice(finalMinutes);
-  const qrAmount =
-    payMode === "transfer" ? price : payMode === "mixed" ? Number(transfer) || 0 : 0;
-
+  const qrAmount = payMode === "transfer" ? price : payMode === "mixed" ? Number(transfer) || 0 : 0;
 
   const [autoRun, setAutoRun] = useState(false);
   function handleSlipVerified() {
@@ -509,20 +645,24 @@ function StartPcModal({ machine, onClose, onSuccess }: { machine: Machine; onClo
         e instanceof Error
           ? e.message
           : e && typeof e === "object"
-          ? ((e as { message?: string; details?: string; hint?: string; code?: string }).message ||
+            ? (e as { message?: string; details?: string; hint?: string; code?: string }).message ||
               (e as { details?: string }).details ||
-              JSON.stringify(e))
-          : String(e);
+              JSON.stringify(e)
+            : String(e);
       console.error("startPcSession failed:", e);
       alert("เริ่ม session ไม่สำเร็จ: " + msg);
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <div className="modal-backdrop-custom" onClick={onClose}>
       <div className="modal-custom" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header bg-success text-white">
-          <h5 className="modal-title fw-bold m-0">🟢 เริ่มเปิดเครื่อง PC {machine.machine_number}</h5>
+          <h5 className="modal-title fw-bold m-0">
+            🟢 เริ่มเปิดเครื่อง PC {machine.machine_number}
+          </h5>
           <button className="btn-close btn-close-white" onClick={onClose} />
         </div>
         <div className="p-4">
@@ -532,7 +672,10 @@ function StartPcModal({ machine, onClose, onSuccess }: { machine: Machine; onClo
             {member ? (
               <div className="small text-success mt-1">
                 บิลนี้จะได้ <b>{pointsForPlay("pc", { minutes: finalMinutes }, cfg)}</b> แต้ม
-                <span className="text-muted"> (โซน PC เล่น {cfg.hours_per_point_pc} ชม. = 1 แต้ม)</span>
+                <span className="text-muted">
+                  {" "}
+                  (โซน PC เล่น {cfg.hours_per_point_pc} ชม. = 1 แต้ม)
+                </span>
               </div>
             ) : (
               <div className="small text-muted mt-1">
@@ -549,36 +692,56 @@ function StartPcModal({ machine, onClose, onSuccess }: { machine: Machine; onClo
                 </span>
               )}
             </label>
-            <input className="form-control" value={name} onChange={(e) => setName(e.target.value)} placeholder="เช่น เอ, บี..." />
+            <input
+              className="form-control"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="เช่น เอ, บี..."
+            />
           </div>
           <div className="mb-3">
             <label className="form-label fw-bold">⏱️ เลือกเวลา</label>
             <div className="d-grid gap-2">
               {DURATION_PRESETS.map((p) => (
-                <button key={p.minutes} type="button"
+                <button
+                  key={p.minutes}
+                  type="button"
                   className={`btn ${minutes === p.minutes ? "btn-success" : "btn-outline-success"} d-flex justify-content-between`}
-                  onClick={() => setMinutes(p.minutes)}>
+                  onClick={() => setMinutes(p.minutes)}
+                >
                   <span>{p.label}</span>
                   <b>{formatBaht(calcPcPrice(p.minutes))} บาท</b>
                 </button>
               ))}
-              <button type="button"
+              <button
+                type="button"
                 className={`btn ${minutes === 0 ? "btn-primary" : "btn-outline-primary"}`}
-                onClick={() => setMinutes(0)}>
+                onClick={() => setMinutes(0)}
+              >
                 กำหนดเอง
               </button>
               {minutes === 0 && (
                 <div className="input-group">
-                  <input type="number" min={1} className="form-control" placeholder="จำนวนนาที"
-                    value={custom} onChange={(e) => setCustom(e.target.value)} autoFocus />
+                  <input
+                    type="number"
+                    min={1}
+                    className="form-control"
+                    placeholder="จำนวนนาที"
+                    value={custom}
+                    onChange={(e) => setCustom(e.target.value)}
+                    autoFocus
+                  />
                   <span className="input-group-text">นาที</span>
                 </div>
               )}
             </div>
           </div>
           <div className="alert alert-info py-2 text-center mb-3">
-            รวม: <b>{finalMinutes}</b> นาที · ราคา <b className="text-danger">{formatBaht(price)}</b> บาท
-            <div className="small text-muted">อัตรา: 30 บาท/30 นาที · 50 บาท/ชม. · 2 ชม. 100 บาท</div>
+            รวม: <b>{finalMinutes}</b> นาที · ราคา{" "}
+            <b className="text-danger">{formatBaht(price)}</b> บาท
+            <div className="small text-muted">
+              อัตรา: 30 บาท/30 นาที · 50 บาท/ชม. · 2 ชม. 100 บาท
+            </div>
           </div>
 
           <div className="mb-3">
@@ -590,21 +753,36 @@ function StartPcModal({ machine, onClose, onSuccess }: { machine: Machine; onClo
             <div className="row g-2 mb-3">
               <div className="col-6">
                 <label className="small text-success fw-bold">💵 เงินสด (บาท)</label>
-                <input type="number" className="form-control" value={cash} onChange={(e) => setCash(e.target.value)} />
+                <input
+                  type="number"
+                  className="form-control"
+                  value={cash}
+                  onChange={(e) => setCash(e.target.value)}
+                />
               </div>
               <div className="col-6">
                 <label className="small text-primary fw-bold">📱 เงินโอน (บาท)</label>
-                <input type="number" className="form-control" value={transfer} onChange={(e) => setTransfer(e.target.value)} />
+                <input
+                  type="number"
+                  className="form-control"
+                  value={transfer}
+                  onChange={(e) => setTransfer(e.target.value)}
+                />
               </div>
             </div>
           )}
 
           {payMode === "points" && (
-            <div className="alert alert-warning py-2 small">🎁 ใช้แต้มแลกเล่น — ไม่นับเข้ารายได้</div>
+            <div className="alert alert-warning py-2 small">
+              🎁 ร้านแถมให้ — ไม่คิดเงิน ไม่หักแต้มสมาชิก (ไม่นับเข้ารายได้) · โซน PC
+              ยังแลกแต้มไม่ได้
+            </div>
           )}
 
           {payMode === "credit" && (
-            <div className="alert alert-warning py-2 small">🧾 ค้างจ่าย — เปิดเครื่องก่อน ยังไม่รับเงิน (เก็บตอนเช็คบิล)</div>
+            <div className="alert alert-warning py-2 small">
+              🧾 ค้างจ่าย — เปิดเครื่องก่อน ยังไม่รับเงิน (เก็บตอนเช็คบิล)
+            </div>
           )}
 
           <PromptPayQR
@@ -618,8 +796,14 @@ function StartPcModal({ machine, onClose, onSuccess }: { machine: Machine; onClo
           )}
 
           <div className="d-flex justify-content-end gap-2 mt-3">
-            <button className="btn btn-secondary" onClick={onClose}>ยกเลิก</button>
-            <button className="btn btn-success fw-bold" disabled={finalMinutes <= 0 || busy} onClick={submit}>
+            <button className="btn btn-secondary" onClick={onClose}>
+              ยกเลิก
+            </button>
+            <button
+              className="btn btn-success fw-bold"
+              disabled={finalMinutes <= 0 || busy}
+              onClick={submit}
+            >
               {busy ? "กำลังเริ่ม..." : "🟢 เริ่มเปิดเครื่อง"}
             </button>
           </div>
@@ -629,18 +813,26 @@ function StartPcModal({ machine, onClose, onSuccess }: { machine: Machine; onClo
   );
 }
 
-function ExtendPcModal({ machine, session, onClose, onSuccess }: { machine: Machine; session: PcSession; onClose: () => void; onSuccess: () => void }) {
+function ExtendPcModal({
+  machine,
+  session,
+  onClose,
+  onSuccess,
+}: {
+  machine: Machine;
+  session: PcSession;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
   const [minutes, setMinutes] = useState<number>(30);
   const [custom, setCustom] = useState<string>("");
   const [payMode, setPayMode] = useState<PayMode>("cash");
   const [cash, setCash] = useState<string>("");
   const [transfer, setTransfer] = useState<string>("");
   const [busy, setBusy] = useState(false);
-  const finalMinutes = minutes === 0 ? (parseInt(custom, 10) || 0) : minutes;
+  const finalMinutes = minutes === 0 ? parseInt(custom, 10) || 0 : minutes;
   const price = calcPcPrice(finalMinutes);
-  const qrAmount =
-    payMode === "transfer" ? price : payMode === "mixed" ? Number(transfer) || 0 : 0;
-
+  const qrAmount = payMode === "transfer" ? price : payMode === "mixed" ? Number(transfer) || 0 : 0;
 
   const [autoRun, setAutoRun] = useState(false);
   function handleSlipVerified() {
@@ -668,7 +860,9 @@ function ExtendPcModal({ machine, session, onClose, onSuccess }: { machine: Mach
       onSuccess();
     } catch (e) {
       alert("เพิ่มเวลาไม่สำเร็จ: " + (e instanceof Error ? e.message : String(e)));
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -683,27 +877,42 @@ function ExtendPcModal({ machine, session, onClose, onSuccess }: { machine: Mach
             <label className="form-label fw-bold">⏱️ เพิ่มอีก</label>
             <div className="d-grid gap-2">
               {DURATION_PRESETS.map((p) => (
-                <button key={p.minutes} type="button"
+                <button
+                  key={p.minutes}
+                  type="button"
                   className={`btn ${minutes === p.minutes ? "btn-primary" : "btn-outline-primary"} d-flex justify-content-between`}
-                  onClick={() => setMinutes(p.minutes)}>
+                  onClick={() => setMinutes(p.minutes)}
+                >
                   <span>{p.label}</span>
                   <b>{formatBaht(calcPcPrice(p.minutes))} บาท</b>
                 </button>
               ))}
-              <button type="button"
+              <button
+                type="button"
                 className={`btn ${minutes === 0 ? "btn-primary" : "btn-outline-primary"}`}
-                onClick={() => setMinutes(0)}>กำหนดเอง</button>
+                onClick={() => setMinutes(0)}
+              >
+                กำหนดเอง
+              </button>
               {minutes === 0 && (
                 <div className="input-group">
-                  <input type="number" min={1} className="form-control" placeholder="จำนวนนาที"
-                    value={custom} onChange={(e) => setCustom(e.target.value)} autoFocus />
+                  <input
+                    type="number"
+                    min={1}
+                    className="form-control"
+                    placeholder="จำนวนนาที"
+                    value={custom}
+                    onChange={(e) => setCustom(e.target.value)}
+                    autoFocus
+                  />
                   <span className="input-group-text">นาที</span>
                 </div>
               )}
             </div>
           </div>
           <div className="alert alert-info py-2 text-center mb-3">
-            เพิ่ม <b>{finalMinutes}</b> นาที · <b className="text-danger">{formatBaht(price)}</b> บาท
+            เพิ่ม <b>{finalMinutes}</b> นาที · <b className="text-danger">{formatBaht(price)}</b>{" "}
+            บาท
           </div>
 
           <div className="mb-3">
@@ -715,21 +924,36 @@ function ExtendPcModal({ machine, session, onClose, onSuccess }: { machine: Mach
             <div className="row g-2 mb-3">
               <div className="col-6">
                 <label className="small text-success fw-bold">💵 เงินสด (บาท)</label>
-                <input type="number" className="form-control" value={cash} onChange={(e) => setCash(e.target.value)} />
+                <input
+                  type="number"
+                  className="form-control"
+                  value={cash}
+                  onChange={(e) => setCash(e.target.value)}
+                />
               </div>
               <div className="col-6">
                 <label className="small text-primary fw-bold">📱 เงินโอน (บาท)</label>
-                <input type="number" className="form-control" value={transfer} onChange={(e) => setTransfer(e.target.value)} />
+                <input
+                  type="number"
+                  className="form-control"
+                  value={transfer}
+                  onChange={(e) => setTransfer(e.target.value)}
+                />
               </div>
             </div>
           )}
 
           {payMode === "points" && (
-            <div className="alert alert-warning py-2 small">🎁 ใช้แต้มแลกเล่น — ไม่นับเข้ารายได้</div>
+            <div className="alert alert-warning py-2 small">
+              🎁 ร้านแถมให้ — ไม่คิดเงิน ไม่หักแต้มสมาชิก (ไม่นับเข้ารายได้) · โซน PC
+              ยังแลกแต้มไม่ได้
+            </div>
           )}
 
           {payMode === "credit" && (
-            <div className="alert alert-warning py-2 small">🧾 ค้างจ่าย — ต่อเวลาโดยยังไม่รับเงิน (เก็บตอนเช็คบิล)</div>
+            <div className="alert alert-warning py-2 small">
+              🧾 ค้างจ่าย — ต่อเวลาโดยยังไม่รับเงิน (เก็บตอนเช็คบิล)
+            </div>
           )}
 
           <PromptPayQR
@@ -743,8 +967,14 @@ function ExtendPcModal({ machine, session, onClose, onSuccess }: { machine: Mach
           )}
 
           <div className="d-flex justify-content-end gap-2 mt-3">
-            <button className="btn btn-secondary" onClick={onClose}>ยกเลิก</button>
-            <button className="btn btn-primary fw-bold" disabled={finalMinutes <= 0 || busy} onClick={submit}>
+            <button className="btn btn-secondary" onClick={onClose}>
+              ยกเลิก
+            </button>
+            <button
+              className="btn btn-primary fw-bold"
+              disabled={finalMinutes <= 0 || busy}
+              onClick={submit}
+            >
               {busy ? "กำลังเพิ่ม..." : "➕ เพิ่มเวลา"}
             </button>
           </div>
@@ -754,7 +984,17 @@ function ExtendPcModal({ machine, session, onClose, onSuccess }: { machine: Mach
   );
 }
 
-function EndPcModal({ machine, session, onClose, onSuccess }: { machine: Machine; session: PcSession; onClose: () => void; onSuccess: () => void }) {
+function EndPcModal({
+  machine,
+  session,
+  onClose,
+  onSuccess,
+}: {
+  machine: Machine;
+  session: PcSession;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
   const [food, setFood] = useState<string>("");
   const [payMode, setPayMode] = useState<PayMode>("cash");
   const [cash, setCash] = useState<string>("");
@@ -763,25 +1003,41 @@ function EndPcModal({ machine, session, onClose, onSuccess }: { machine: Machine
 
   const [member, setMember] = useState<Member | null>(null);
   const [cfg, setCfg] = useState<PointsConfig>(DEFAULT_POINTS_CONFIG);
-  useEffect(() => { getPointsConfig().then(setCfg).catch(() => {}); }, []);
+  useEffect(() => {
+    getPointsConfig()
+      .then(setCfg)
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     let alive = true;
-    if (!session.member_id) { setMember(null); return; }
+    if (!session.member_id) {
+      setMember(null);
+      return;
+    }
     getMember(session.member_id)
-      .then((m) => { if (alive) setMember(m); })
+      .then((m) => {
+        if (alive) setMember(m);
+      })
       .catch((e) => console.warn("[pc bill] load member failed:", e));
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [session.member_id]);
 
   async function handleMemberChange(m: Member | null) {
     setMember(m);
-    try { await setPcSessionMember(session.id, m?.id ?? null); }
-    catch (e) { console.warn("[pc bill] set member failed:", e); }
+    try {
+      await setPcSessionMember(session.id, m?.id ?? null);
+    } catch (e) {
+      console.warn("[pc bill] set member failed:", e);
+    }
   }
 
   const pcEarn = pointsForPlay("pc", { minutes: Number(session.minutes_purchased) || 0 }, cfg);
 
-  const [prodSales, setProdSales] = useState<(ProductSale & { product_sale_items: ProductSaleItem[] })[]>([]);
+  const [prodSales, setProdSales] = useState<
+    (ProductSale & { product_sale_items: ProductSaleItem[] })[]
+  >([]);
   useEffect(() => {
     listOpenSalesForBill({ pcSessionId: session.id })
       .then(setProdSales)
@@ -800,10 +1056,13 @@ function EndPcModal({ machine, session, onClose, onSuccess }: { machine: Machine
   const alreadyRedeemed = !!session.redeemed_points;
 
   const qrAmount =
-    alreadyRedeemed && foodAmount === 0 ? 0 :
-    payMode === "transfer" ? remaining :
-    payMode === "mixed" ? Number(transfer) || 0 : 0;
-
+    alreadyRedeemed && foodAmount === 0
+      ? 0
+      : payMode === "transfer"
+        ? remaining
+        : payMode === "mixed"
+          ? Number(transfer) || 0
+          : 0;
 
   const [autoRun, setAutoRun] = useState(false);
   function handleSlipVerified() {
@@ -841,7 +1100,8 @@ function EndPcModal({ machine, session, onClose, onSuccess }: { machine: Machine
         addTransfer = Math.max(0, addTransfer - prodTransfer);
         await settleSalesForBill({
           pcSessionId: session.id,
-          method: payMode === "credit" ? "points" : (payMode as "cash" | "transfer" | "mixed" | "points"),
+          method:
+            payMode === "credit" ? "points" : (payMode as "cash" | "transfer" | "mixed" | "points"),
           cash: prodCash,
           transfer: prodTransfer,
         });
@@ -855,12 +1115,18 @@ function EndPcModal({ machine, session, onClose, onSuccess }: { machine: Machine
       });
       onSuccess();
     } catch (e) {
-      const msg = e instanceof Error ? e.message
-        : e && typeof e === "object"
-        ? ((e as { message?: string; details?: string }).message || (e as { details?: string }).details || JSON.stringify(e))
-        : String(e);
+      const msg =
+        e instanceof Error
+          ? e.message
+          : e && typeof e === "object"
+            ? (e as { message?: string; details?: string }).message ||
+              (e as { details?: string }).details ||
+              JSON.stringify(e)
+            : String(e);
       alert("ปิดเครื่องไม่สำเร็จ: " + msg);
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -872,16 +1138,29 @@ function EndPcModal({ machine, session, onClose, onSuccess }: { machine: Machine
         </div>
         <div className="p-4">
           <div className="alert alert-secondary py-2 small mb-3">
-            <div>👤 ลูกค้า: <b>{session.customer_name || "-"}</b></div>
-            <div>⏱️ เล่นจริง: <b>{usedMin}</b> นาที (ซื้อ {session.minutes_purchased} นาที)</div>
-            <div>💰 ค่าเครื่อง: <b>{formatBaht(machinePrice)}</b> บาท {alreadyRedeemed && <span className="badge ms-1" style={{ background: "#a855f7" }}>🎁 แลกแต้ม</span>}</div>
+            <div>
+              👤 ลูกค้า: <b>{session.customer_name || "-"}</b>
+            </div>
+            <div>
+              ⏱️ เล่นจริง: <b>{usedMin}</b> นาที (ซื้อ {session.minutes_purchased} นาที)
+            </div>
+            <div>
+              💰 ค่าเครื่อง: <b>{formatBaht(machinePrice)}</b> บาท{" "}
+              {alreadyRedeemed && (
+                <span className="badge ms-1" style={{ background: "#a855f7" }}>
+                  🎁 แถมฟรี
+                </span>
+              )}
+            </div>
             {productTotal > 0 && (
               <div>
-                🛒 สินค้า:{" "}
-                <b>{productItems.map((i) => `${i.name} x${i.qty}`).join(", ")}</b> = <b>{formatBaht(productTotal)}</b> บาท
+                🛒 สินค้า: <b>{productItems.map((i) => `${i.name} x${i.qty}`).join(", ")}</b> ={" "}
+                <b>{formatBaht(productTotal)}</b> บาท
               </div>
             )}
-            <div>✅ ชำระมาแล้ว: <b className="text-success">{formatBaht(alreadyPaid)}</b> บาท</div>
+            <div>
+              ✅ ชำระมาแล้ว: <b className="text-success">{formatBaht(alreadyPaid)}</b> บาท
+            </div>
           </div>
 
           <div className="mb-3">
@@ -912,7 +1191,11 @@ function EndPcModal({ machine, session, onClose, onSuccess }: { machine: Machine
           </div>
 
           <div className="alert alert-warning py-2 text-center mb-3">
-            ยอดคงเหลือต้องชำระ: <b className="text-danger" style={{ fontSize: "1.3rem" }}>{formatBaht(remaining)}</b> บาท
+            ยอดคงเหลือต้องชำระ:{" "}
+            <b className="text-danger" style={{ fontSize: "1.3rem" }}>
+              {formatBaht(remaining)}
+            </b>{" "}
+            บาท
           </div>
 
           {remaining > 0 && (
@@ -926,7 +1209,12 @@ function EndPcModal({ machine, session, onClose, onSuccess }: { machine: Machine
                     { v: "mixed" as PayMode, label: "🔀 ผสม" },
                   ].map((o) => (
                     <label key={o.v} className="radio-item">
-                      <input type="radio" name="pcEndPay" checked={payMode === o.v} onChange={() => setPayMode(o.v)} />
+                      <input
+                        type="radio"
+                        name="pcEndPay"
+                        checked={payMode === o.v}
+                        onChange={() => setPayMode(o.v)}
+                      />
                       {o.label}
                     </label>
                   ))}
@@ -937,29 +1225,41 @@ function EndPcModal({ machine, session, onClose, onSuccess }: { machine: Machine
                 <div className="row g-2 mb-3">
                   <div className="col-6">
                     <label className="small text-success fw-bold">💵 เงินสด (บาท)</label>
-                    <input type="number" className="form-control" value={cash} onChange={(e) => setCash(e.target.value)} />
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={cash}
+                      onChange={(e) => setCash(e.target.value)}
+                    />
                   </div>
                   <div className="col-6">
                     <label className="small text-primary fw-bold">📱 เงินโอน (บาท)</label>
-                    <input type="number" className="form-control" value={transfer} onChange={(e) => setTransfer(e.target.value)} />
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={transfer}
+                      onChange={(e) => setTransfer(e.target.value)}
+                    />
                   </div>
                 </div>
               )}
 
               <PromptPayQR
-            amount={qrAmount}
-            onVerified={payMode === "transfer" ? handleSlipVerified : undefined}
-          />
-          {autoRun && (
-            <div className="alert alert-success py-2 text-center mt-2 mb-0 fw-bold">
-              ✅ ตรวจสลิปผ่านแล้ว — กำลังปิดบิล...
-            </div>
-          )}
+                amount={qrAmount}
+                onVerified={payMode === "transfer" ? handleSlipVerified : undefined}
+              />
+              {autoRun && (
+                <div className="alert alert-success py-2 text-center mt-2 mb-0 fw-bold">
+                  ✅ ตรวจสลิปผ่านแล้ว — กำลังปิดบิล...
+                </div>
+              )}
             </>
           )}
 
           <div className="d-flex justify-content-end gap-2 mt-3">
-            <button className="btn btn-secondary" onClick={onClose}>ยกเลิก</button>
+            <button className="btn btn-secondary" onClick={onClose}>
+              ยกเลิก
+            </button>
             <button className="btn btn-danger fw-bold" disabled={busy} onClick={submit}>
               {busy ? "กำลังบันทึก..." : "✅ ยืนยันปิดเครื่อง"}
             </button>
