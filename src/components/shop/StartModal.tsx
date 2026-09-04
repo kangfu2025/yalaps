@@ -123,8 +123,21 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
           : redeemActive
             ? `เปิดเครื่อง ${hours} ชม. · แลกแต้มฟรี 1 ชม.`
             : `เปิดเครื่อง ${hours} ชม.`,
+      // ไม่ส่ง member ตอนไม่ใช่สมาชิก เพื่อให้จอกลับไปโหมดปกติทันทีที่ถอดสมาชิกออก
+      member: member
+        ? {
+            name: member.name,
+            // หักแต้มที่กำลังจะใช้แลกออกให้เห็นยอดจริงที่จะเหลือ
+            points: Math.max(0, member.points - (redeemActive ? cfg.redeem_cost : 0)),
+            visits: member.visits,
+            will_earn: pointsForPlay(machine.zone, { hours }, cfg),
+            redeem_cost: cfg.redeem_cost,
+            redeeming: redeemActive,
+            zone_redeemable: zoneRedeemable,
+          }
+        : undefined,
     });
-  }, [machine, name, hours, payMode, qrAmount, price, redeemActive]);
+  }, [machine, name, hours, payMode, qrAmount, price, redeemActive, member, cfg, zoneRedeemable]);
 
   if (!machine) return null;
 

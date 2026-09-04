@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import { supabase } from "@/lib/supabase";
 import { buildPromptpayDataUrl, PROMPTPAY_ID } from "@/lib/promptpay";
 import { formatBaht, formatHours } from "@/lib/priceEngine";
-import { clearDisplay, type DisplayPayload } from "@/lib/customerDisplay";
+import { clearDisplay, type DisplayMember, type DisplayPayload } from "@/lib/customerDisplay";
 import { SlipQrCamera, type CameraDevice } from "@/components/shop/SlipQrCamera";
 import { submitScannedPayload } from "@/lib/slipScan";
 import { formatBaht as fmtBaht } from "@/lib/priceEngine";
@@ -327,6 +327,12 @@ function DisplayPage() {
     );
   }
 
+  // ---------- เปิดเครื่องให้สมาชิก + ยังไม่ต้องสแกนจ่าย: ทักทายเต็มจอ ----------
+  // จ่ายเงินสด/ค้างจ่าย จอจะว่างอยู่แล้ว เอาช่วงนั้นมาโชว์ข้อมูลสมาชิกแทนรูปโปรฯ
+  if (payload.kind === "start" && payload.member && !showQr) {
+    return <MemberWelcome payload={payload} member={payload.member} />;
+  }
+
   // Idle
   if (!showQr) {
     const current = promos[promoIdx];
@@ -383,6 +389,8 @@ function DisplayPage() {
       </div>
 
       {payload.customer_name && <div className="display-customer">👤 {payload.customer_name}</div>}
+
+      {payload.member && <MemberStrip member={payload.member} />}
 
       <div className="display-amount-block">
         <div className="amount-label">{chargeLabel}</div>
@@ -447,6 +455,111 @@ function DisplayPage() {
       <div className="display-footer">
         {payload.message ? payload.message : "รอแอดมินยืนยันการชำระเงิน"}
       </div>
+    </div>
+  );
+}
+
+/** ป้ายสมาชิกแบบบาง — ใช้คู่กับหน้าจ่ายเงินที่มี QR อยู่แล้ว พื้นที่จอมีจำกัด */
+function MemberStrip({ member }: { member: DisplayMember }) {
+  const cost = member.redeem_cost ?? 10;
+  const ready = member.zone_redeemable !== false && member.points >= cost;
+  return (
+    <div className="mb-strip">
+      <span className="mb-strip-tag">🎫 สมาชิก</span>
+      <span className="mb-strip-name">{member.name}</span>
+      <span className="mb-strip-pts">
+        {member.points} <small>แต้ม</small>
+      </span>
+      {member.redeeming && <span className="mb-strip-redeem">🎁 แลกฟรี 1 ชม.</span>}
+      {!member.redeeming && ready && <span className="mb-strip-ready">แลกฟรีได้แล้ว</span>}
+    </div>
+  );
+}
+
+/** หน้าทักทายสมาชิกเต็มจอ (จอลูกค้าแนวตั้ง) */
+function MemberWelcome({ payload, member }: { payload: DisplayPayload; member: DisplayMember }) {
+  const cost = member.redeem_cost ?? 10;
+  const canRedeemHere = member.zone_redeemable !== false;
+  // เหลืออีกกี่แต้มถึงจะแลกได้ — ครบแล้วให้เป็น 0 เพื่อสลับไปโชว์ข้อความ "แลกได้แล้ว"
+  const need = Math.max(0, cost - member.points);
+  // วงกลมความคืบหน้ารอบถัดไป: ครบ 10 แล้วนับใหม่จาก 0 ไม่ให้ค้างเต็มวงตลอด
+  const inCycle = cost > 0 ? member.points % cost : 0;
+  const pct = need === 0 ? 100 : cost > 0 ? Math.round((inCycle / cost) * 100) : 0;
+
+  const zoneText =
+    payload.zone === "sofa" ? "🛋️ โซฟา" : payload.zone === "racing" ? "🏎️ รถแข่ง" : "🖥️ PC";
+
+  return (
+    <div className="display-portrait display-member">
+      <div className="mb-head">
+        <div className="mb-brand">YALA PLAYSTATION</div>
+        <div className="mb-hello">ยินดีต้อนรับ</div>
+        <div className="mb-name">คุณ{member.name}</div>
+      </div>
+
+      <div className="mb-ring" style={{ ["--pct" as string]: `${pct}%` }}>
+        <div className="mb-ring-in">
+          <div className="mb-ring-num">{member.points}</div>
+          <div className="mb-ring-lbl">แต้มสะสม</div>
+        </div>
+      </div>
+
+      {member.redeeming ? (
+        <div className="mb-banner is-redeem">
+          🎁 แลกเล่นฟรี 1 ชั่วโมงแล้ว
+          <span className="mb-banner-sub">ใช้ไป {cost} แต้ม</span>
+        </div>
+      ) : !canRedeemHere ? (
+        <div className="mb-banner is-plain">
+          สะสมแต้มได้ตามปกติ
+          <span className="mb-banner-sub">โซนนี้ยังแลกของรางวัลไม่ได้</span>
+        </div>
+      ) : need === 0 ? (
+        <div className="mb-banner is-ready">
+          🎉 แต้มครบแล้ว
+          <span className="mb-banner-sub">แลกเล่นฟรี 1 ชั่วโมงได้เลย แจ้งพนักงานได้ทันที</span>
+        </div>
+      ) : (
+        <div className="mb-banner is-plain">
+          อีก <b>{need}</b> แต้ม เล่นฟรี 1 ชั่วโมง
+          <span className="mb-banner-sub">สะสมครบ {cost} แต้ม แลกได้ 1 ครั้ง</span>
+        </div>
+      )}
+
+      <div className="mb-facts">
+        <div className="mb-fact">
+          <div className="mb-fact-v">{zoneText}</div>
+          <div className="mb-fact-k">
+            {typeof payload.machine_number === "number"
+              ? `เครื่อง ${payload.machine_number}`
+              : "เครื่องเล่น"}
+          </div>
+        </div>
+        {typeof payload.play_hours === "number" && payload.play_hours > 0 && (
+          <div className="mb-fact">
+            <div className="mb-fact-v">{formatHours(payload.play_hours)} ชม.</div>
+            <div className="mb-fact-k">
+              {payload.start_time && payload.end_time
+                ? `${payload.start_time} - ${payload.end_time}`
+                : "เวลาเล่น"}
+            </div>
+          </div>
+        )}
+        {typeof member.will_earn === "number" && member.will_earn > 0 && (
+          <div className="mb-fact is-gain">
+            <div className="mb-fact-v">+{member.will_earn}</div>
+            <div className="mb-fact-k">แต้มที่จะได้บิลนี้</div>
+          </div>
+        )}
+        {typeof member.visits === "number" && member.visits > 0 && (
+          <div className="mb-fact">
+            <div className="mb-fact-v">{member.visits}</div>
+            <div className="mb-fact-k">ครั้งที่มาเล่น</div>
+          </div>
+        )}
+      </div>
+
+      <div className="mb-foot">ขอให้สนุกกับการเล่นนะครับ 🎮</div>
     </div>
   );
 }

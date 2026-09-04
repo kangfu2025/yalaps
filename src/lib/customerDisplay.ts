@@ -5,6 +5,28 @@ export type PaymentMethod = "cash" | "transfer" | "promptpay" | "mixed" | "credi
 
 export type ChargeType = "start" | "extend" | "food" | "checkout";
 
+/**
+ * ข้อมูลสมาชิกที่ส่งไปโชว์บนจอลูกค้า
+ *
+ * ส่งเฉพาะที่ลูกค้าควรเห็นตอนยืนอยู่หน้าเคาน์เตอร์ — ไม่ส่งเบอร์โทรหรือ id
+ * เพราะจอนี้หันออกหน้าร้าน คนอื่นที่เดินผ่านก็เห็นด้วย
+ */
+export interface DisplayMember {
+  name: string;
+  /** แต้มคงเหลือตอนนี้ (หักแต้มที่เพิ่งแลกไปแล้ว) */
+  points: number;
+  /** มาเล่นมาแล้วกี่ครั้ง */
+  visits?: number;
+  /** บิลนี้จะได้แต้มเพิ่มอีกเท่าไหร่เมื่อปิดบิล */
+  will_earn?: number;
+  /** ใช้กี่แต้มถึงแลกเล่นฟรี 1 ชม. ได้ */
+  redeem_cost?: number;
+  /** บิลนี้แลกแต้มเล่นฟรีไปแล้ว */
+  redeeming?: boolean;
+  /** โซนนี้แลกแต้มได้ไหม (โซน PC แลกไม่ได้) */
+  zone_redeemable?: boolean;
+}
+
 export interface DisplayPayload {
   /** join = โชว์ QR สมัครสมาชิกเต็มจอ · join_done = โชว์ "ยินดีต้อนรับ" ก่อนปิดกลับโหมดปกติ */
   kind: "idle" | "start" | "manage" | "join" | "join_done" | "slip_scan" | "slip_result";
@@ -14,7 +36,7 @@ export interface DisplayPayload {
   customer_name?: string;
 
   start_time?: string; // "HH:MM"
-  end_time?: string;   // "HH:MM"
+  end_time?: string; // "HH:MM"
 
   play_hours?: number;
   food_amount?: number;
@@ -22,16 +44,19 @@ export interface DisplayPayload {
 
   // รายละเอียดของรายการที่กำลังชำระ (ให้หน้า /display แสดง breakdown)
   charge_type?: ChargeType;
-  extend_hours?: number;   // ชั่วโมงที่ต่อเวลา (เฉพาะ extend)
-  food_charge?: number;    // ค่าอาหารในรายการนี้ (เฉพาะ food)
+  extend_hours?: number; // ชั่วโมงที่ต่อเวลา (เฉพาะ extend)
+  food_charge?: number; // ค่าอาหารในรายการนี้ (เฉพาะ food)
 
   payment_method?: PaymentMethod;
   promptpay_number?: string;
   qr_image_url?: string; // public PNG URL of PromptPay QR (for ESP32 to download)
-  qr_code?: string;      // data URL of QR image (legacy, used by /display page)
-  qr?: string;           // legacy: amount as string
+  qr_code?: string; // data URL of QR image (legacy, used by /display page)
+  qr?: string; // legacy: amount as string
 
   message?: string;
+
+  /** สมาชิกที่ผูกกับรายการนี้ — ไม่มีค่า = ลูกค้าทั่วไป */
+  member?: DisplayMember;
 
   // ---- ตรวจสลิปด้วยกล้องหน้าร้าน ----
   slip_request_id?: string;
@@ -99,7 +124,12 @@ export async function showSlipScanScreen(requestId: string, amount: number) {
 
 /** แสดงผลตรวจสลิปบนจอลูกค้า */
 export async function showSlipResultScreen(ok: boolean, message: string, amount?: number) {
-  return pushDisplay({ kind: "slip_result", slip_ok: ok, slip_message: message, slip_amount: amount });
+  return pushDisplay({
+    kind: "slip_result",
+    slip_ok: ok,
+    slip_message: message,
+    slip_amount: amount,
+  });
 }
 
 /** พนักงานสั่งขึ้นหน้า QR สมัครสมาชิกเต็มจอบนจอลูกค้า */
