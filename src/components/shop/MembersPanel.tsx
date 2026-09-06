@@ -30,7 +30,13 @@ import {
   type PointTransaction,
 } from "@/lib/members";
 import { supabase } from "@/lib/supabase";
-import { showJoinScreen, clearDisplay, readDisplayKind } from "@/lib/customerDisplay";
+import {
+  showJoinScreen,
+  clearDisplay,
+  readDisplayKind,
+  showMemberCard,
+  clearMemberCard,
+} from "@/lib/customerDisplay";
 
 export function MembersPanel() {
   const [term, setTerm] = useState("");
@@ -228,7 +234,9 @@ export function MembersPanel() {
         </table>
       </div>
 
-      {detail && <MemberDetail member={detail} onClose={() => setDetail(null)} onChanged={load} />}
+      {detail && (
+        <MemberDetail member={detail} cfg={cfg} onClose={() => setDetail(null)} onChanged={load} />
+      )}
       {showQr && <JoinQrModal onClose={() => setShowQr(false)} />}
       {showNew && <NewMemberModal onClose={() => setShowNew(false)} onDone={load} />}
     </>
@@ -239,10 +247,12 @@ export function MembersPanel() {
 
 function MemberDetail({
   member,
+  cfg,
   onClose,
   onChanged,
 }: {
   member: Member;
+  cfg: PointsConfig;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -259,6 +269,40 @@ function MemberDetail({
       .then(setTx)
       .catch((e) => console.warn("[members] tx:", e));
   }, [member.id]);
+
+  // โชว์ข้อมูลสมาชิกบนจอลูกค้าตลอดที่หน้านี้เปิดอยู่ — ให้ลูกค้าเห็นแต้มตัวเองด้วย
+  // ตามแต้มล่าสุด (points) จึงอัปเดตทันทีเมื่อพนักงานปรับแต้ม
+  useEffect(() => {
+    showMemberCard({
+      name: member.name,
+      points,
+      visits: member.visits,
+      lifetime_points: member.lifetime_points,
+      last_visit: member.last_visit_at
+        ? new Date(member.last_visit_at).toLocaleDateString("th-TH", {
+            day: "2-digit",
+            month: "short",
+            year: "2-digit",
+          })
+        : null,
+      redeem_cost: cfg.redeem_cost,
+    }).catch((e) => console.warn("[members] push display:", e));
+  }, [
+    member.id,
+    member.name,
+    member.visits,
+    member.lifetime_points,
+    member.last_visit_at,
+    points,
+    cfg.redeem_cost,
+  ]);
+
+  // ปิดหน้ารายละเอียด = เก็บจอลูกค้ากลับเป็นรูปโปรโมชั่น
+  useEffect(() => {
+    return () => {
+      clearMemberCard().catch((e) => console.warn("[members] clear display:", e));
+    };
+  }, []);
 
   async function saveProfile() {
     if (busy) return;

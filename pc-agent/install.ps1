@@ -12,7 +12,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$InstallerVersion = "2.4.0"
+$InstallerVersion = "2.5.0"
 
 # always log everything to a file, so a window that closes too fast is still debuggable
 $LogFile = Join-Path $env:TEMP "yala-install.log"
@@ -113,8 +113,59 @@ if ($Diagnose) {
     exit 0
 }
 
+# Look the machine id up from the database when only the number was given.
+#
+# Typing a 36 character UUID by hand at every PC is error prone, and a single
+# wrong character silently breaks heartbeat and remote commands later on.
+# The machines table allows anonymous SELECT, so the anon key we already carry
+# is enough to resolve "PC number 3" into its real id.
+if (-not $MachineId -and $MachineNumber -gt 0) {
+    Write-Host "==> Looking up machine #$MachineNumber (zone pc) in the database..." -ForegroundColor Cyan
+    try {
+        # Windows PowerShell 5.1 still defaults to TLS 1.0 on some builds and
+        # Supabase refuses anything below TLS 1.2
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    } catch {}
+
+    $lookupUri = "$SupabaseUrl/rest/v1/machines?select=id,zone,machine_number&zone=eq.pc&machine_number=eq.$MachineNumber"
+    $lookupHeaders = @{ apikey = $SupabaseAnonKey; Authorization = "Bearer $SupabaseAnonKey" }
+    $found = $null
+    try {
+        $found = Invoke-RestMethod -Uri $lookupUri -Headers $lookupHeaders -Method Get -TimeoutSec 25
+    } catch {
+        Write-Host ""
+        Write-Host "ERROR: cannot reach the database to look up the machine id." -ForegroundColor Red
+        Write-Host "       $_" -ForegroundColor Red
+        Write-Host "       Check this PC has internet, then try again." -ForegroundColor Yellow
+        Write-Host "       You can also pass the id yourself:" -ForegroundColor Yellow
+        Write-Host "         install.ps1 -MachineId <uuid> -MachineNumber $MachineNumber" -ForegroundColor Yellow
+        if ($Elevated) { Read-Host "Press Enter to close" }
+        exit 1
+    }
+
+    $count = @($found).Count
+    if ($count -eq 1) {
+        $MachineId = @($found)[0].id
+        Write-Host "    found: $MachineId" -ForegroundColor Green
+    } elseif ($count -eq 0) {
+        Write-Host ""
+        Write-Host "ERROR: no PC-zone machine numbered $MachineNumber exists in the database." -ForegroundColor Red
+        Write-Host "       Open the Web Admin -> PC Zone tab and check the machine number." -ForegroundColor Yellow
+        Write-Host "       Add the machine there first, then run this installer again." -ForegroundColor Yellow
+        if ($Elevated) { Read-Host "Press Enter to close" }
+        exit 1
+    } else {
+        Write-Host ""
+        Write-Host "ERROR: $count PC-zone machines share the number $MachineNumber." -ForegroundColor Red
+        Write-Host "       Fix the duplicate in the Web Admin, or pass the id yourself:" -ForegroundColor Yellow
+        Write-Host "         install.ps1 -MachineId <uuid> -MachineNumber $MachineNumber" -ForegroundColor Yellow
+        if ($Elevated) { Read-Host "Press Enter to close" }
+        exit 1
+    }
+}
+
 if (-not $MachineId -or $MachineNumber -le 0) {
-    throw "Usage: install.ps1 -MachineId <uuid> -MachineNumber <n>   (or -Diagnose to check an existing install)"
+    throw "Usage: install.ps1 -MachineNumber <n>   (the machine id is looked up automatically; add -MachineId <uuid> to set it by hand, or -Diagnose to check an existing install)"
 }
 
 # validate the UUID early - a truncated id silently breaks heartbeat/commands

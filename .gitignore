@@ -39,3 +39,6 @@ pc-agent/**/obj/
 .env
 .env.*
 !.env.example
+
+# ชุดติดตั้ง PC agent ที่บิ้วแล้ว (ไฟล์ใหญ่ 158 MB ห้ามขึ้น git)
+pc-agent/dist/

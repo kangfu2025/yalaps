@@ -330,7 +330,12 @@ function DisplayPage() {
   // ---------- เปิดเครื่องให้สมาชิก + ยังไม่ต้องสแกนจ่าย: ทักทายเต็มจอ ----------
   // จ่ายเงินสด/ค้างจ่าย จอจะว่างอยู่แล้ว เอาช่วงนั้นมาโชว์ข้อมูลสมาชิกแทนรูปโปรฯ
   if (payload.kind === "start" && payload.member && !showQr) {
-    return <MemberWelcome payload={payload} member={payload.member} />;
+    return <MemberWelcome payload={payload} member={payload.member} mode="start" />;
+  }
+
+  // ---------- พนักงานเปิดดูรายละเอียดสมาชิก: โชว์ให้ลูกค้าดูด้วย ----------
+  if (payload.kind === "member_card" && payload.member) {
+    return <MemberWelcome payload={payload} member={payload.member} mode="card" />;
   }
 
   // Idle
@@ -476,8 +481,22 @@ function MemberStrip({ member }: { member: DisplayMember }) {
   );
 }
 
-/** หน้าทักทายสมาชิกเต็มจอ (จอลูกค้าแนวตั้ง) */
-function MemberWelcome({ payload, member }: { payload: DisplayPayload; member: DisplayMember }) {
+/**
+ * หน้าข้อมูลสมาชิกเต็มจอ (จอลูกค้าแนวตั้ง)
+ *
+ * ใช้สองจังหวะ ต่างกันแค่ช่องข้อมูลด้านล่างกับคำทักทาย:
+ *   start = ตอนเปิดเครื่องให้สมาชิก  -> โชว์เครื่อง/เวลาเล่น/แต้มที่จะได้บิลนี้
+ *   card  = ตอนพนักงานเปิดดูรายละเอียด -> โชว์แต้มสะสมทั้งหมด/จำนวนครั้ง/มาล่าสุด
+ */
+function MemberWelcome({
+  payload,
+  member,
+  mode,
+}: {
+  payload: DisplayPayload;
+  member: DisplayMember;
+  mode: "start" | "card";
+}) {
   const cost = member.redeem_cost ?? 10;
   const canRedeemHere = member.zone_redeemable !== false;
   // เหลืออีกกี่แต้มถึงจะแลกได้ — ครบแล้วให้เป็น 0 เพื่อสลับไปโชว์ข้อความ "แลกได้แล้ว"
@@ -493,7 +512,7 @@ function MemberWelcome({ payload, member }: { payload: DisplayPayload; member: D
     <div className="display-portrait display-member">
       <div className="mb-head">
         <div className="mb-brand">YALA PLAYSTATION</div>
-        <div className="mb-hello">ยินดีต้อนรับ</div>
+        <div className="mb-hello">{mode === "card" ? "ข้อมูลสมาชิก" : "ยินดีต้อนรับ"}</div>
         <div className="mb-name">คุณ{member.name}</div>
       </div>
 
@@ -509,7 +528,7 @@ function MemberWelcome({ payload, member }: { payload: DisplayPayload; member: D
           🎁 แลกเล่นฟรี 1 ชั่วโมงแล้ว
           <span className="mb-banner-sub">ใช้ไป {cost} แต้ม</span>
         </div>
-      ) : !canRedeemHere ? (
+      ) : mode === "start" && !canRedeemHere ? (
         <div className="mb-banner is-plain">
           สะสมแต้มได้ตามปกติ
           <span className="mb-banner-sub">โซนนี้ยังแลกของรางวัลไม่ได้</span>
@@ -527,30 +546,48 @@ function MemberWelcome({ payload, member }: { payload: DisplayPayload; member: D
       )}
 
       <div className="mb-facts">
-        <div className="mb-fact">
-          <div className="mb-fact-v">{zoneText}</div>
-          <div className="mb-fact-k">
-            {typeof payload.machine_number === "number"
-              ? `เครื่อง ${payload.machine_number}`
-              : "เครื่องเล่น"}
-          </div>
-        </div>
-        {typeof payload.play_hours === "number" && payload.play_hours > 0 && (
-          <div className="mb-fact">
-            <div className="mb-fact-v">{formatHours(payload.play_hours)} ชม.</div>
-            <div className="mb-fact-k">
-              {payload.start_time && payload.end_time
-                ? `${payload.start_time} - ${payload.end_time}`
-                : "เวลาเล่น"}
+        {mode === "start" && (
+          <>
+            <div className="mb-fact">
+              <div className="mb-fact-v">{zoneText}</div>
+              <div className="mb-fact-k">
+                {typeof payload.machine_number === "number"
+                  ? `เครื่อง ${payload.machine_number}`
+                  : "เครื่องเล่น"}
+              </div>
             </div>
+            {typeof payload.play_hours === "number" && payload.play_hours > 0 && (
+              <div className="mb-fact">
+                <div className="mb-fact-v">{formatHours(payload.play_hours)} ชม.</div>
+                <div className="mb-fact-k">
+                  {payload.start_time && payload.end_time
+                    ? `${payload.start_time} - ${payload.end_time}`
+                    : "เวลาเล่น"}
+                </div>
+              </div>
+            )}
+            {typeof member.will_earn === "number" && member.will_earn > 0 && (
+              <div className="mb-fact is-gain">
+                <div className="mb-fact-v">+{member.will_earn}</div>
+                <div className="mb-fact-k">แต้มที่จะได้บิลนี้</div>
+              </div>
+            )}
+          </>
+        )}
+
+        {mode === "card" && typeof member.lifetime_points === "number" && (
+          <div className="mb-fact">
+            <div className="mb-fact-v">{member.lifetime_points}</div>
+            <div className="mb-fact-k">แต้มสะสมทั้งหมด</div>
           </div>
         )}
-        {typeof member.will_earn === "number" && member.will_earn > 0 && (
-          <div className="mb-fact is-gain">
-            <div className="mb-fact-v">+{member.will_earn}</div>
-            <div className="mb-fact-k">แต้มที่จะได้บิลนี้</div>
+        {mode === "card" && member.last_visit && (
+          <div className="mb-fact">
+            <div className="mb-fact-v">{member.last_visit}</div>
+            <div className="mb-fact-k">มาล่าสุด</div>
           </div>
         )}
+
         {typeof member.visits === "number" && member.visits > 0 && (
           <div className="mb-fact">
             <div className="mb-fact-v">{member.visits}</div>

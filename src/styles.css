@@ -2990,6 +2990,10 @@ label.small {
   width: 100%;
   max-width: 90%;
 }
+/* จำนวนช่องเป็นเลขคี่ -> ช่องสุดท้ายกินเต็มแถว ไม่ทิ้งช่องว่างข้าง ๆ */
+.mb-facts > .mb-fact:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
 .mb-fact {
   padding: 1.8vh 2vw;
   border-radius: 16px;

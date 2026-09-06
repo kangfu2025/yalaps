@@ -17,6 +17,10 @@ export interface DisplayMember {
   points: number;
   /** มาเล่นมาแล้วกี่ครั้ง */
   visits?: number;
+  /** แต้มที่สะสมมาทั้งหมดตั้งแต่เป็นสมาชิก (ไม่ลดตอนแลก) */
+  lifetime_points?: number;
+  /** วันที่มาล่าสุด — จัดรูปแบบมาให้แล้วจากฝั่งที่ส่ง */
+  last_visit?: string | null;
   /** บิลนี้จะได้แต้มเพิ่มอีกเท่าไหร่เมื่อปิดบิล */
   will_earn?: number;
   /** ใช้กี่แต้มถึงแลกเล่นฟรี 1 ชม. ได้ */
@@ -28,8 +32,19 @@ export interface DisplayMember {
 }
 
 export interface DisplayPayload {
-  /** join = โชว์ QR สมัครสมาชิกเต็มจอ · join_done = โชว์ "ยินดีต้อนรับ" ก่อนปิดกลับโหมดปกติ */
-  kind: "idle" | "start" | "manage" | "join" | "join_done" | "slip_scan" | "slip_result";
+  /**
+   * join = โชว์ QR สมัครสมาชิกเต็มจอ · join_done = โชว์ "ยินดีต้อนรับ" ก่อนปิดกลับโหมดปกติ
+   * member_card = โชว์ข้อมูลสมาชิกเต็มจอ ตอนพนักงานเปิดดูรายละเอียดในหน้าแอดมิน
+   */
+  kind:
+    | "idle"
+    | "start"
+    | "manage"
+    | "join"
+    | "join_done"
+    | "member_card"
+    | "slip_scan"
+    | "slip_result";
 
   zone?: string;
   machine_number?: number;
@@ -135,6 +150,22 @@ export async function showSlipResultScreen(ok: boolean, message: string, amount?
 /** พนักงานสั่งขึ้นหน้า QR สมัครสมาชิกเต็มจอบนจอลูกค้า */
 export async function showJoinScreen() {
   return pushDisplay({ kind: "join" });
+}
+
+/** โชว์ข้อมูลสมาชิกเต็มจอ — ใช้ตอนพนักงานเปิดดูรายละเอียดสมาชิกให้ลูกค้าดูด้วย */
+export async function showMemberCard(member: DisplayMember) {
+  return pushDisplay({ kind: "member_card", customer_name: member.name, member });
+}
+
+/**
+ * ปิดการ์ดสมาชิก — ปิดเฉพาะตอนที่จอยังโชว์การ์ดอยู่จริง
+ *
+ * ระหว่างที่พนักงานเปิดดูรายละเอียดค้างไว้ อาจมีคนอื่นสั่งจอไปทำอย่างอื่นแล้ว
+ * (เปิดบิล ตรวจสลิป) ถ้าล้างทื่อ ๆ จะไปลบหน้าจอของงานนั้นทิ้ง
+ */
+export async function clearMemberCard() {
+  const kind = await readDisplayKind().catch(() => null);
+  if (kind === "member_card") await clearDisplay();
 }
 
 /** อ่านสถานะจอลูกค้าตอนนี้ (ใช้ให้ปุ่มในหน้าแอดมินรู้ว่ากำลังโชว์ QR อยู่ไหม) */
