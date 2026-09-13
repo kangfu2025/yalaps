@@ -53,6 +53,9 @@ export function SlipVerifyModal({
   const [status, setStatus] = useState<SlipStatus | null>(null);
   const [checking, setChecking] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
+  const busyRef = useRef(false);
+  const generationRef = useRef(0);
+  useEffect(() => () => { generationRef.current++; }, [expectedAmount, reservationId, pcSessionId, productSaleId]);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const gunRef = useRef<HTMLInputElement | null>(null);
 
@@ -93,7 +96,9 @@ export function SlipVerifyModal({
   );
 
   async function run(input: { payload?: string; imageBase64?: string }) {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
+    const generation = generationRef.current;
     setBusy(true);
     setResult(null);
     try {
@@ -104,15 +109,18 @@ export function SlipVerifyModal({
         pcSessionId,
         productSaleId,
       });
+      if (generation !== generationRef.current) return;
       setResult(r);
       if (r.ok) onVerified?.(r);
     } catch (e) {
+      if (generation !== generationRef.current) return;
       setResult({
         ok: false,
         status: "failed",
         error: e instanceof Error ? e.message : String(e),
       });
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
@@ -121,8 +129,12 @@ export function SlipVerifyModal({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setResult({ ok: false, status: "failed", error: "ไฟล์ใหญ่เกิน 5 MB ลองถ่ายใหม่ให้เล็กลง" });
+    if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(file.type)) {
+      setResult({ ok: false, status: "failed", error: "รองรับรูป JPEG, PNG, GIF และ WebP เท่านั้น" });
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setResult({ ok: false, status: "failed", error: "ไฟล์ใหญ่เกิน 4 MB ลองถ่ายใหม่ให้เล็กลง" });
       return;
     }
     try {
@@ -218,7 +230,7 @@ export function SlipVerifyModal({
                 <input
                   ref={fileRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
                   className="d-none"
                   onChange={onPickFile}
                 />

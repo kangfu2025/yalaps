@@ -16,7 +16,8 @@ const SUPABASE_ANON_KEY =
 const EASYSLIP_ENDPOINT = "https://api.easyslip.com/v2/verify/bank";
 
 /** ยอมรับความคลาดเคลื่อนของยอดได้ 1 สตางค์ (ปัดเศษของธนาคาร) */
-const AMOUNT_TOLERANCE = 0.01;
+const AMOUNT_TOLERANCE = 1; // satang
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 /** ไม่ให้พนักงานยืนรอไม่รู้จบถ้าเน็ตไปไม่ถึง EasySlip */
 const EASYSLIP_TIMEOUT_MS = 15_000;
@@ -41,7 +42,7 @@ function json(status: number, body: unknown) {
 }
 
 function num(v: unknown): number | null {
-  const n = typeof v === "string" ? parseFloat(v) : typeof v === "number" ? v : NaN;
+  const n = typeof v === "string" ? Number(v) : typeof v === "number" ? v : NaN;
   return Number.isFinite(n) ? n : null;
 }
 
@@ -130,7 +131,7 @@ function errorCode(body: Record<string, unknown>): string | null {
   if (Number.isFinite(status) && status >= 400 && typeof body.message === "string") {
     return body.message;
   }
-  if (body.success === false && typeof body.message === "string") return body.message;
+  if (body.success === false) return typeof body.message === "string" ? body.message : "API_SERVER_ERROR";
   return null;
 }
 
@@ -172,6 +173,11 @@ export const Route = createFileRoute("/api/verify-slip")({
         const { data: userData, error: userErr } = await db.auth.getUser();
         const user = userData?.user;
         if (userErr || !user) return json(401, { error: "unauthorized" });
+        const { data: roles, error: roleError } = await db.from("user_roles")
+          .select("role").eq("user_id", user.id);
+        if (roleError || !roles?.some((r) => r.role === "admin" || r.role === "staff")) {
+          return json(403, { ok: false, status: "failed", error: "เฉพาะพนักงานหรือผู้ดูแลระบบเท่านั้น" });
+        }
 
         // ---------- 2) อ่าน request ----------
         let body: VerifyBody;
@@ -180,7 +186,38 @@ export const Route = createFileRoute("/api/verify-slip")({
         } catch {
           return json(400, { error: "bad request" });
         }
-        const expected = Number(body.expectedAmount) || 0;
+        if (!body || typeof body !== "object" || Array.isArray(body)) {
+          return json(400, { error: "bad request" });
+        }
+        const expected = body.expectedAmount;
+        if (typeof expected !== "number" || !Number.isFinite(expected) || expected <= 0 || expected > 99999999.99) {
+          return json(400, { error: "ยอดที่ต้องตรวจต้องเป็นตัวเลขมากกว่า 0" });
+        }
+        if ((body.payload != null && typeof body.payload !== "string") ||
+            (body.imageBase64 != null && typeof body.imageBase64 !== "string") ||
+            (!!body.payload === !!body.imageBase64)) {
+          return json(400, { error: "ส่ง QR หรือรูปสลิปอย่างใดอย่างหนึ่งเท่านั้น" });
+        }
+        const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const links = [body.reservationId, body.pcSessionId, body.productSaleId].filter((v) => v != null);
+        if (links.length > 1 || links.some((v) => typeof v !== "string" || !uuid.test(v)) ||
+            (body.note != null && (typeof body.note !== "string" || body.note.length > 255))) {
+          return json(400, { error: "ข้อมูลอ้างอิงบิลไม่ถูกต้อง" });
+        }
+        let imageBase64: string | undefined;
+        if (body.imageBase64) {
+          const value = body.imageBase64.trim();
+          const dataUrl = /^data:image\/(jpeg|png|gif|webp);base64,/i;
+          if (value.startsWith("data:") && !dataUrl.test(value)) {
+            return json(400, { error: "รองรับรูป JPEG, PNG, GIF และ WebP เท่านั้น" });
+          }
+          imageBase64 = value.replace(dataUrl, "");
+          if (!imageBase64 || imageBase64.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(imageBase64)) {
+            return json(400, { error: "ข้อมูลรูปสลิปไม่ใช่ Base64 ที่ถูกต้อง" });
+          }
+          const bytes = imageBase64.length * 3 / 4 - (imageBase64.endsWith("==") ? 2 : imageBase64.endsWith("=") ? 1 : 0);
+          if (bytes > MAX_IMAGE_BYTES) return json(413, { error: "รูปสลิปต้องไม่เกิน 4 MB" });
+        }
         if (!body.payload && !body.imageBase64) {
           return json(400, { error: "ต้องส่ง payload จาก QR หรือรูปสลิปมาอย่างใดอย่างหนึ่ง" });
         }
@@ -193,7 +230,9 @@ export const Route = createFileRoute("/api/verify-slip")({
         if (body.payload) {
           const p = body.payload.trim();
           scanKind = classifySlipPayload(p);
-          console.log("[verify-slip] scanKind", p.length, JSON.stringify(scanKind));
+          if (scanKind.normalized.length > 128) {
+            return json(400, { error: "ข้อความ QR ยาวเกินรูปแบบที่ EasySlip รองรับ กรุณาสแกนใหม่" });
+          }
           if (!scanKind.sendable) {
             return json(200, {
               ok: false,
@@ -206,7 +245,7 @@ export const Route = createFileRoute("/api/verify-slip")({
           }
         }
 
-        const apiKey = process.env.EASYSLIP_API_KEY;
+        const apiKey = process.env.EASYSLIP_API_KEY?.trim();
         if (!apiKey) {
           return json(500, {
             error:
@@ -224,7 +263,11 @@ export const Route = createFileRoute("/api/verify-slip")({
           // ทำให้ payload ยาวเป็นสองเท่าแล้ว EasySlip ตีกลับว่าผิดรูปแบบ
           const payloadBody: Record<string, unknown> = body.payload
             ? { payload: scanKind?.normalized ?? body.payload.trim() }
-            : { image: String(body.imageBase64).replace(/^data:image\/\w+;base64,/, "") };
+            : { base64: imageBase64 };
+          payloadBody.matchAccount = true;
+          // Local unique trans_ref guards consumption; failed amount checks must remain retryable.
+          payloadBody.checkDuplicate = false;
+          if (body.note) payloadBody.remark = body.note;
 
           const res = await fetch(EASYSLIP_ENDPOINT, {
             method: "POST",
@@ -235,18 +278,22 @@ export const Route = createFileRoute("/api/verify-slip")({
             body: JSON.stringify(payloadBody),
             signal: ac.signal,
           });
-          slipJson = (await res.json()) as Record<string, unknown>;
+          const responseBody: unknown = await res.json().catch(() => null);
+          if (!responseBody || typeof responseBody !== "object" || Array.isArray(responseBody)) {
+            return json(200, { ok: false, status: "failed", code: "INVALID_RESPONSE", error: "EasySlip ตอบข้อมูลไม่สมบูรณ์ กรุณาลองใหม่" });
+          }
+          slipJson = responseBody as Record<string, unknown>;
           console.log(
             "[verify-slip] easyslip",
             res.status,
             `${Date.now() - startedAt}ms`,
-            JSON.stringify(slipJson).slice(0, 1200),
+
           );
 
           // EasySlip ตอบ error ได้ทั้งแบบ HTTP 4xx และแบบ HTTP 200 ที่มี success:false
           const code = errorCode(slipJson);
-          if (!res.ok || code) {
-            const c = code ?? `HTTP_${res.status}`;
+          if (!res.ok || code || slipJson.success !== true) {
+            const c = code ?? (res.ok ? "INVALID_RESPONSE" : `HTTP_${res.status}`);
             return json(200, {
               ok: false,
               status: "failed",
@@ -287,9 +334,22 @@ export const Route = createFileRoute("/api/verify-slip")({
           });
         }
 
-        const slipAmount = slip.amount ?? 0;
-        const matched = expected > 0 && Math.abs(slipAmount - expected) <= AMOUNT_TOLERANCE;
-        const status = matched ? "verified" : "amount_mismatch";
+        if (!firstString(slipJson, ["data.matchedAccount.bankNumber"])) {
+          return json(200, { ok: false, status: "failed", code: "RECEIVER_NOT_MATCHED",
+            error: "บัญชีผู้รับไม่ตรงกับบัญชีร้านที่ลงทะเบียนใน EasySlip — ตรวจบัญชีรับเงินใน EasySlip ก่อนยืนยัน",
+            slip, expectedAmount: expected });
+        }
+        if (slip.amount === null || slip.amount <= 0 || !slip.date || !Number.isFinite(Date.parse(slip.date))) {
+          return json(200, { ok: false, status: "failed", code: "INVALID_SLIP_DATA", error: "EasySlip ส่งยอดเงินหรือวันที่ไม่สมบูรณ์ กรุณาลองใหม่" });
+        }
+        const slipAmount = slip.amount;
+        const matched = Math.abs(Math.round(slipAmount * 100) - Math.round(expected * 100)) <= AMOUNT_TOLERANCE;
+        const status = "verified";
+        if (!matched) {
+          // Do not consume a slip rejected for the expected amount.
+          return json(200, { ok: false, status: "amount_mismatch", slip, expectedAmount: expected,
+            error: "ยอดบนสลิปไม่ตรงกับยอดที่ต้องชำระ (สลิป " + slipAmount.toFixed(2) + " / ต้องชำระ " + expected.toFixed(2) + ")" });
+        }
 
         // ---------- 4) บันทึกผล (unique trans_ref กันสลิปใบเดิมใช้ซ้ำ) ----------
         const { error: insErr } = await db.from("slip_verifications").insert({
@@ -328,8 +388,10 @@ export const Route = createFileRoute("/api/verify-slip")({
               previous: prev ?? null,
             });
           }
-          // บันทึกไม่ได้ก็ยังต้องบอกผลตรวจ อย่าให้พนักงานค้าง
-          console.error("[verify-slip] insert failed:", insErr);
+          // Never authorize a payment without persisting the duplicate guard.
+          console.error("[verify-slip] insert failed:", insErr.code);
+          return json(200, { ok: false, status: "failed", code: "SAVE_FAILED", slip,
+            expectedAmount: expected, error: "ตรวจข้อมูลสลิปได้ แต่บันทึกหลักฐานไม่สำเร็จ ยังไม่ยืนยันการชำระ กรุณาลองใหม่หรือติดต่อผู้ดูแล" });
         }
 
         return json(200, {

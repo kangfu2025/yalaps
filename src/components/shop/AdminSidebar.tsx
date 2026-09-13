@@ -19,7 +19,6 @@ import {
   X,
   IdCard,
   MessageCircle,
-  BellRing,
 } from "lucide-react";
 
 export type Tab =
@@ -34,8 +33,7 @@ export type Tab =
   | "screen"
   | "users"
   | "members"
-  | "line"
-  | "paywatch";
+  | "line";
 
 type Item = { key: Tab; label: string; icon: LucideIcon; adminOnly?: boolean };
 
@@ -59,7 +57,6 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { key: "promo", label: "โปรโมชั่น", icon: Tag, adminOnly: true },
       { key: "screen", label: "รูปหน้าจอ", icon: ImageIcon },
       { key: "line", label: "แจ้งเตือน LINE", icon: MessageCircle, adminOnly: true },
-      { key: "paywatch", label: "ตรวจเงินเข้าอัตโนมัติ", icon: BellRing, adminOnly: true },
       { key: "users", label: "ผู้ใช้งาน", icon: Users, adminOnly: true },
     ],
   },

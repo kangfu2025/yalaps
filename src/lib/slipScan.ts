@@ -61,7 +61,8 @@ export async function submitScannedPayload(requestId: string, payload: string): 
     p_payload: payload,
   });
   if (error) throw error;
-  return Boolean(data);
+  if (!data) throw new Error("คิวสแกนหมดอายุหรือถูกยกเลิก ให้พนักงานเริ่มสแกนใหม่");
+  return true;
 }
 
 /**
@@ -72,8 +73,10 @@ export function watchSlipScan(
   requestId: string,
   onResult: (result: SlipVerifyResult) => void,
   onError?: (message: string) => void,
+  productSaleId: string | null = null,
 ): () => void {
   let done = false;
+  let disposed = false;
 
   async function handle(row: SlipScanRequest) {
     if (done || row.status !== "scanned" || !row.payload) return;
@@ -84,8 +87,10 @@ export function watchSlipScan(
         expectedAmount: Number(row.expected_amount) || 0,
         reservationId: row.reservation_id,
         pcSessionId: row.pc_session_id,
+        productSaleId,
       });
 
+      if (disposed) return;
       await supabase
         .from("slip_scan_requests")
         .update({
@@ -96,20 +101,22 @@ export function watchSlipScan(
         })
         .eq("id", requestId);
 
+      if (disposed) return;
       await showSlipResultScreen(
         result.ok,
         result.ok ? "ยืนยันการชำระเงินเรียบร้อย" : (result.error ?? "ตรวจสลิปไม่ผ่าน"),
         Number(row.expected_amount) || 0,
-      );
+      ).catch((e) => console.warn("[slip] display unavailable", e));
 
-      onResult(result);
+      if (!disposed) onResult(result);
     } catch (e) {
+      if (disposed) return;
       const msg = e instanceof Error ? e.message : String(e);
       await supabase
         .from("slip_scan_requests")
         .update({ status: "failed", result_ok: false, result_message: msg })
         .eq("id", requestId);
-      await showSlipResultScreen(false, "ตรวจสลิปไม่สำเร็จ กรุณาลองใหม่");
+      await showSlipResultScreen(false, "ตรวจสลิปไม่สำเร็จ กรุณาลองใหม่").catch(() => {});
       onError?.(msg);
     }
   }
@@ -140,6 +147,7 @@ export function watchSlipScan(
   }, 2000);
 
   return () => {
+    disposed = true;
     done = true;
     clearInterval(poll);
     supabase.removeChannel(ch);

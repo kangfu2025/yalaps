@@ -213,9 +213,10 @@ export function SlipQrCamera({
         // fallback: @zxing/browser อ่านจาก stream ที่เปิดไว้แล้ว
         const { BrowserQRCodeReader } = await import("@zxing/browser");
         const reader = new BrowserQRCodeReader();
-        zxingControls = reader.decodeFromVideoElement(video, (res) => {
+        zxingControls = await reader.decodeFromVideoElement(video, (res) => {
           if (res) hit(res.getText());
-        }) as unknown as { stop: () => void };
+        });
+        if (stopped) zxingControls.stop();
       } catch (e) {
         const name = (e as { name?: string } | null)?.name ?? "";
         setErr(

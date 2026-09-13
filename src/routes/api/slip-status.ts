@@ -37,7 +37,7 @@ export const Route = createFileRoute("/api/slip-status")({
         const { data: userData } = await db.auth.getUser();
         if (!userData?.user) return json(401, { error: "unauthorized" });
 
-        const key = process.env.EASYSLIP_API_KEY;
+        const key = process.env.EASYSLIP_API_KEY?.trim();
         if (!key) {
           return json(200, {
             hasKey: false,
@@ -55,9 +55,10 @@ export const Route = createFileRoute("/api/slip-status")({
             signal: ac.signal,
           });
           const latencyMs = Date.now() - started;
-          const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+          const parsed: unknown = await res.json().catch(() => null);
+          const body = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
 
-          if (!res.ok) {
+          if (!res.ok || body.success !== true) {
             return json(200, {
               hasKey: true,
               ok: false,
@@ -68,7 +69,7 @@ export const Route = createFileRoute("/api/slip-status")({
                   ? "API key ไม่ถูกต้อง — คัดลอกใหม่จากหน้า EasySlip แล้วใส่ใน .env"
                   : res.status === 403
                     ? "บัญชีถูกจำกัดสิทธิ์ หรือ IP ของเซิร์ฟเวอร์ไม่อยู่ใน whitelist"
-                    : `EasySlip ตอบกลับ ${res.status}`,
+                    : "EasySlip ตอบข้อมูลไม่สำเร็จหรือไม่สมบูรณ์ กรุณาลองใหม่",
               debug: body,
             });
           }

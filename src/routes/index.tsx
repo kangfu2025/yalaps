@@ -14,7 +14,6 @@ import { CouponsPanel } from "@/components/shop/CouponsPanel";
 import { UsersPanel } from "@/components/shop/UsersPanel";
 import { MembersPanel } from "@/components/shop/MembersPanel";
 import { LineSettingsPanel } from "@/components/shop/LineSettingsPanel";
-import { PayWatchPanel } from "@/components/shop/PayWatchPanel";
 import { ProductsPanel } from "@/components/shop/ProductsPanel";
 import { ProductSalePanel } from "@/components/shop/ProductSalePanel";
 import { ConfirmDialog } from "@/components/shop/ConfirmDialog";
@@ -46,7 +45,6 @@ const TAB_TITLE: Record<Tab, string> = {
   report: "บัญชีและสรุปยอด",
   members: "สมาชิกและแต้มสะสม",
   line: "แจ้งเตือน LINE",
-  paywatch: "ตรวจเงินเข้าอัตโนมัติ",
   coupons: "คูปอง",
   res: "คิวจองล่วงหน้า",
   promo: "โปรโมชั่น",
@@ -221,8 +219,7 @@ function Index() {
               <PromotionPanel />
             ) : effTab === "line" ? (
               <LineSettingsPanel />
-            ) : effTab === "paywatch" ? (
-              <PayWatchPanel />
+
             ) : effTab === "users" ? (
               <UsersPanel />
             ) : (
