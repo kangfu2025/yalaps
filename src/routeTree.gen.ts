@@ -20,6 +20,7 @@ import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } fr
 import { Route as ApiAdminUsersRouteImport } from './routes/api/admin-users'
 import { Route as ApiLinePushRouteImport } from './routes/api/line-push'
 import { Route as ApiLineStatusRouteImport } from './routes/api/line-status'
+import { Route as ApiPayWatchRouteImport } from './routes/api/pay-watch'
 import { Route as ApiSlipStatusRouteImport } from './routes/api/slip-status'
 import { Route as ApiVerifySlipRouteImport } from './routes/api/verify-slip'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
@@ -81,6 +82,11 @@ const ApiLineStatusRoute = ApiLineStatusRouteImport.update({
   path: '/api/line-status',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPayWatchRoute = ApiPayWatchRouteImport.update({
+  id: '/api/pay-watch',
+  path: '/api/pay-watch',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSlipStatusRoute = ApiSlipStatusRouteImport.update({
   id: '/api/slip-status',
   path: '/api/slip-status',
@@ -110,6 +116,7 @@ export interface FileRoutesByFullPath {
   '/api/admin-users': typeof ApiAdminUsersRoute
   '/api/line-push': typeof ApiLinePushRoute
   '/api/line-status': typeof ApiLineStatusRoute
+  '/api/pay-watch': typeof ApiPayWatchRoute
   '/api/slip-status': typeof ApiSlipStatusRoute
   '/api/verify-slip': typeof ApiVerifySlipRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -126,6 +133,7 @@ export interface FileRoutesByTo {
   '/api/admin-users': typeof ApiAdminUsersRoute
   '/api/line-push': typeof ApiLinePushRoute
   '/api/line-status': typeof ApiLineStatusRoute
+  '/api/pay-watch': typeof ApiPayWatchRoute
   '/api/slip-status': typeof ApiSlipStatusRoute
   '/api/verify-slip': typeof ApiVerifySlipRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -143,6 +151,7 @@ export interface FileRoutesById {
   '/api/admin-users': typeof ApiAdminUsersRoute
   '/api/line-push': typeof ApiLinePushRoute
   '/api/line-status': typeof ApiLineStatusRoute
+  '/api/pay-watch': typeof ApiPayWatchRoute
   '/api/slip-status': typeof ApiSlipStatusRoute
   '/api/verify-slip': typeof ApiVerifySlipRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/api/admin-users'
     | '/api/line-push'
     | '/api/line-status'
+    | '/api/pay-watch'
     | '/api/slip-status'
     | '/api/verify-slip'
     | '/.mcp/invoke-tool/$tool'
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/api/admin-users'
     | '/api/line-push'
     | '/api/line-status'
+    | '/api/pay-watch'
     | '/api/slip-status'
     | '/api/verify-slip'
     | '/.mcp/invoke-tool/$tool'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/api/admin-users'
     | '/api/line-push'
     | '/api/line-status'
+    | '/api/pay-watch'
     | '/api/slip-status'
     | '/api/verify-slip'
     | '/.mcp/invoke-tool/$tool'
@@ -210,6 +222,7 @@ export interface RootRouteChildren {
   ApiAdminUsersRoute: typeof ApiAdminUsersRoute
   ApiLinePushRoute: typeof ApiLinePushRoute
   ApiLineStatusRoute: typeof ApiLineStatusRoute
+  ApiPayWatchRoute: typeof ApiPayWatchRoute
   ApiSlipStatusRoute: typeof ApiSlipStatusRoute
   ApiVerifySlipRoute: typeof ApiVerifySlipRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -294,6 +307,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLineStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/pay-watch': {
+      id: '/api/pay-watch'
+      path: '/api/pay-watch'
+      fullPath: '/api/pay-watch'
+      preLoaderRoute: typeof ApiPayWatchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/slip-status': {
       id: '/api/slip-status'
       path: '/api/slip-status'
@@ -331,6 +351,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminUsersRoute: ApiAdminUsersRoute,
   ApiLinePushRoute: ApiLinePushRoute,
   ApiLineStatusRoute: ApiLineStatusRoute,
+  ApiPayWatchRoute: ApiPayWatchRoute,
   ApiSlipStatusRoute: ApiSlipStatusRoute,
   ApiVerifySlipRoute: ApiVerifySlipRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,

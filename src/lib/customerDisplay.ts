@@ -92,7 +92,26 @@ function toHHMM(input: string | number | Date | null | undefined): string | unde
   return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-export async function pushDisplay(input: DisplayPayload) {
+/**
+ * จองจอลูกค้าไว้ชั่วคราว
+ *
+ * ระหว่างรอเงินเข้า จอต้องค้าง QR ยอดไม่ซ้ำเอาไว้ ห้ามให้ฟอร์มที่เปิดอยู่
+ * (ซึ่งดันจออัตโนมัติทุกครั้งที่พนักงานแก้ตัวเลข) มาเขียนทับ
+ * ตัวล็อกอยู่ในหน่วยความจำของแท็บที่กำลังทำงาน จึงไม่กระทบเครื่องอื่น
+ */
+let _displayLock: string | null = null;
+
+export function lockDisplay(owner: string) {
+  _displayLock = owner;
+}
+
+export function unlockDisplay(owner: string) {
+  if (_displayLock === owner) _displayLock = null;
+}
+
+export async function pushDisplay(input: DisplayPayload, opts: { owner?: string } = {}) {
+  // มีคนจองจออยู่และไม่ใช่เจ้าของ -> เงียบไว้ ไม่ถือเป็นข้อผิดพลาด
+  if (_displayLock && opts.owner !== _displayLock) return;
   const payload: DisplayPayload = { ...input };
 
   // Auto-attach promptpay number whenever a payment_method is provided
@@ -128,8 +147,8 @@ export async function pushDisplay(input: DisplayPayload) {
   if (error) console.error(error);
 }
 
-export async function clearDisplay() {
-  return pushDisplay({ kind: "idle" });
+export async function clearDisplay(opts: { owner?: string } = {}) {
+  return pushDisplay({ kind: "idle" }, opts);
 }
 
 /** สั่งจอลูกค้าเปิดกล้องให้ลูกค้าโชว์ QR บนสลิป */

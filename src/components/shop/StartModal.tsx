@@ -344,6 +344,7 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
 
           <PromptPayQR
             amount={qrAmount}
+            memo={`${machine.zone} ${machine.machine_number}${name.trim() ? " · " + name.trim() : ""}`}
             onVerified={payMode === "transfer" ? handleSlipVerified : undefined}
           />
 

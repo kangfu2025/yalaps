@@ -1,11 +1,41 @@
 import { Link } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import {
-  Gamepad2, Monitor, ShoppingCart, Package, BarChart3, Ticket, CalendarDays,
-  Tag, Image as ImageIcon, Users, LogOut, Shield, RefreshCw, PanelLeftClose, PanelLeftOpen, X, IdCard, MessageCircle,
+  Gamepad2,
+  Monitor,
+  ShoppingCart,
+  Package,
+  BarChart3,
+  Ticket,
+  CalendarDays,
+  Tag,
+  Image as ImageIcon,
+  Users,
+  LogOut,
+  Shield,
+  RefreshCw,
+  PanelLeftClose,
+  PanelLeftOpen,
+  X,
+  IdCard,
+  MessageCircle,
+  BellRing,
 } from "lucide-react";
 
-export type Tab = "dash" | "pc" | "pos" | "stock" | "coupons" | "res" | "report" | "promo" | "screen" | "users" | "members" | "line";
+export type Tab =
+  | "dash"
+  | "pc"
+  | "pos"
+  | "stock"
+  | "coupons"
+  | "res"
+  | "report"
+  | "promo"
+  | "screen"
+  | "users"
+  | "members"
+  | "line"
+  | "paywatch";
 
 type Item = { key: Tab; label: string; icon: LucideIcon; adminOnly?: boolean };
 
@@ -29,6 +59,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { key: "promo", label: "โปรโมชั่น", icon: Tag, adminOnly: true },
       { key: "screen", label: "รูปหน้าจอ", icon: ImageIcon },
       { key: "line", label: "แจ้งเตือน LINE", icon: MessageCircle, adminOnly: true },
+      { key: "paywatch", label: "ตรวจเงินเข้าอัตโนมัติ", icon: BellRing, adminOnly: true },
       { key: "users", label: "ผู้ใช้งาน", icon: Users, adminOnly: true },
     ],
   },
@@ -49,8 +80,17 @@ type Props = {
 };
 
 export function AdminSidebar({
-  tab, onTab, isAdmin, role, username, collapsed, onToggleCollapsed,
-  mobileOpen, onCloseMobile, onRefresh, onSignOut,
+  tab,
+  onTab,
+  isAdmin,
+  role,
+  username,
+  collapsed,
+  onToggleCollapsed,
+  mobileOpen,
+  onCloseMobile,
+  onRefresh,
+  onSignOut,
 }: Props) {
   return (
     <>
@@ -60,7 +100,9 @@ export function AdminSidebar({
         aria-label="เมนูหลัก"
       >
         <div className="yl-sb-head">
-          <div className="yl-sb-logo" aria-hidden>🎮</div>
+          <div className="yl-sb-logo" aria-hidden>
+            🎮
+          </div>
           <div className="yl-sb-brand">
             <span className="yl-sb-title">YALA PLAYSTATION</span>
             <span className="yl-sb-sub">
@@ -78,8 +120,14 @@ export function AdminSidebar({
             <span className="yl-sb-uname">{username ?? "-"}</span>
             <span className="yl-sb-role">
               {isAdmin ? (
-                <><Shield size={10} /> admin</>
-              ) : role === "staff" ? "พนักงาน" : "ยังไม่กำหนดสิทธิ์"}
+                <>
+                  <Shield size={10} /> admin
+                </>
+              ) : role === "staff" ? (
+                "พนักงาน"
+              ) : (
+                "ยังไม่กำหนดสิทธิ์"
+              )}
             </span>
           </div>
         </div>
@@ -95,7 +143,10 @@ export function AdminSidebar({
                   <button
                     key={i.key}
                     className={`yl-sb-item ${tab === i.key ? "active" : ""}`}
-                    onClick={() => { onTab(i.key); onCloseMobile(); }}
+                    onClick={() => {
+                      onTab(i.key);
+                      onCloseMobile();
+                    }}
                     title={i.label}
                   >
                     <i.icon size={17} className="yl-sb-ico" />
@@ -120,7 +171,11 @@ export function AdminSidebar({
             <LogOut size={17} className="yl-sb-ico" />
             <span className="yl-sb-label">ออกจากระบบ</span>
           </button>
-          <button className="yl-sb-collapse d-none d-lg-flex" onClick={onToggleCollapsed} title="ย่อ/ขยายเมนู">
+          <button
+            className="yl-sb-collapse d-none d-lg-flex"
+            onClick={onToggleCollapsed}
+            title="ย่อ/ขยายเมนู"
+          >
             {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
             <span className="yl-sb-label">ย่อเมนู</span>
           </button>
