@@ -3579,3 +3579,72 @@ label.small {
   font-size: 0.82rem;
   line-height: 1.7;
 }
+
+/* ============================================================
+   จอลูกค้า: สื่อเคลื่อนไหว (YouTube / วิดีโออัปโหลด)
+   ทุกอย่างวางแบบ absolute เต็มจอ จึงไม่ติดขอบ padding ของ .display-idle
+   ============================================================ */
+.display-idle.has-media {
+  padding: 0;
+}
+
+/* รูปโปสเตอร์เดิม — คงระยะขอบเท่าเดิมเป๊ะเมื่อเลือก "เห็นทั้งภาพ" */
+.display-promo-img.is-contain {
+  max-width: 94vw;
+  max-height: 96vh;
+  object-fit: contain;
+}
+.display-promo-img.is-cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: cover;
+  border-radius: 0;
+}
+
+/* กล่องสื่อเต็มจอ */
+.display-media {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+}
+.display-media video {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.display-media.is-cover video {
+  object-fit: cover;
+}
+.display-media.is-contain video {
+  object-fit: contain;
+}
+
+/*
+   YouTube บังคับสัดส่วน 16:9 เสมอ จอแนวตั้งจึงต้องขยายกรอบให้ใหญ่เกินจอ
+   แล้วครอปด้วย overflow:hidden — min-width/min-height คู่นี้คำนวณจาก 16:9
+   ทั้งคู่ ภาพจึงไม่ยืดผิดสัดส่วนไม่ว่าจอจะอัตราส่วนเท่าไหร่
+*/
+.display-media-yt iframe {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 0;
+}
+.display-media-yt.is-cover iframe {
+  width: 100vw;
+  height: 56.25vw;
+  min-height: 100vh;
+  min-width: 177.78vh;
+}
+.display-media-yt.is-contain iframe {
+  width: 100vw;
+  height: 56.25vw;
+  max-height: 100vh;
+  max-width: 177.78vh;
+}

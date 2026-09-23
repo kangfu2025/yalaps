@@ -7,6 +7,8 @@ import { formatBaht, formatHours } from "@/lib/priceEngine";
 import { clearDisplay, type DisplayMember, type DisplayPayload } from "@/lib/customerDisplay";
 import { SlipQrCamera, type CameraDevice } from "@/components/shop/SlipQrCamera";
 import { submitScannedPayload } from "@/lib/slipScan";
+import { slideSeconds, type PromoMedia } from "@/lib/promoMedia";
+import { PromoSlide } from "@/components/shop/PromoSlide";
 import { formatBaht as fmtBaht } from "@/lib/priceEngine";
 
 const CAMERA_KEY = "yala-slip-camera";
@@ -18,16 +20,10 @@ export const Route = createFileRoute("/display")({
   component: DisplayPage,
 });
 
-interface PromoRow {
-  id: string;
-  data_url: string;
-  sort_order: number;
-}
-
 function DisplayPage() {
   const [payload, setPayload] = useState<DisplayPayload>({ kind: "idle" });
   const [qrUrl, setQrUrl] = useState("");
-  const [promos, setPromos] = useState<PromoRow[]>([]);
+  const [promos, setPromos] = useState<PromoMedia[]>([]);
   const [promoIdx, setPromoIdx] = useState(0);
   const [joinQr, setJoinQr] = useState("");
   const payloadRef = useRef<DisplayPayload>({ kind: "idle" });
@@ -127,12 +123,38 @@ function DisplayPage() {
   }
 
   async function loadPromos() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("promo_images")
-      .select("id, data_url, sort_order")
+      .select(
+        "id,name,kind,data_url,youtube_id,video_url,video_path,duration_sec,fit,is_active,sort_order,created_at",
+      )
       .eq("is_active", true)
       .order("sort_order", { ascending: true });
-    setPromos((data ?? []) as PromoRow[]);
+    if (error) {
+      // ยังไม่ได้รัน promo_media_migration.sql -> ถอยไปใช้เฉพาะรูปแบบเดิม
+      const { data: legacy } = await supabase
+        .from("promo_images")
+        .select("id, data_url, sort_order")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      setPromos(
+        ((legacy ?? []) as { id: string; data_url: string; sort_order: number }[]).map((r) => ({
+          ...r,
+          name: "",
+          kind: "image" as const,
+          youtube_id: null,
+          video_url: null,
+          video_path: null,
+          duration_sec: null,
+          fit: "contain" as const,
+          is_active: true,
+          created_at: "",
+        })),
+      );
+      setPromoIdx(0);
+      return;
+    }
+    setPromos((data ?? []) as PromoMedia[]);
     setPromoIdx(0);
   }
 
@@ -157,12 +179,22 @@ function DisplayPage() {
     };
   }, []);
 
-  // สลับรูปทุก 8 วิ ถ้ามีมากกว่า 1
+  // ไปสไลด์ถัดไป — มีรายการเดียวก็อยู่กับที่ (วิดีโอจะวนของมันเอง)
+  const nextSlide = useCallback(() => {
+    setPromoIdx((i) => (promos.length ? (i + 1) % promos.length : 0));
+  }, [promos.length]);
+
+  // ตั้งเวลาสลับตามชนิดของรายการที่กำลังแสดง
+  // วิดีโอที่อัปโหลดเองคืนค่า null = ปล่อยให้เล่นจนจบแล้วค่อยสลับ (ดู onEnded)
   useEffect(() => {
     if (promos.length <= 1) return;
-    const t = setInterval(() => setPromoIdx((i) => (i + 1) % promos.length), 8000);
-    return () => clearInterval(t);
-  }, [promos.length]);
+    const cur = promos[promoIdx];
+    if (!cur) return;
+    const sec = slideSeconds(cur);
+    if (sec === null) return;
+    const t = setTimeout(nextSlide, sec * 1000);
+    return () => clearTimeout(t);
+  }, [promos, promoIdx, nextSlide]);
 
   // ยอด QR
   const qrAmount = (() => {
@@ -342,13 +374,13 @@ function DisplayPage() {
   if (!showQr) {
     const current = promos[promoIdx];
     return (
-      <div className="display-portrait display-idle">
+      <div className={`display-portrait display-idle${current ? " has-media" : ""}`}>
         {current ? (
-          <img
+          <PromoSlide
             key={current.id}
-            src={current.data_url}
-            alt="Promotion"
-            className="display-promo-img"
+            item={current}
+            only={promos.length <= 1}
+            onEnded={nextSlide}
           />
         ) : (
           <div className="display-promo-empty">
