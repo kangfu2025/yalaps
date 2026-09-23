@@ -7,6 +7,7 @@ import { StartModal } from "@/components/shop/StartModal";
 import { ManageModal } from "@/components/shop/ManageModal";
 import { ReservationsPanel } from "@/components/shop/ReservationsPanel";
 import { ReportPanel } from "@/components/shop/ReportPanel";
+import { ExpensesPanel } from "@/components/shop/ExpensesPanel";
 import { PromotionPanel } from "@/components/shop/PromotionPanel";
 import { PromoImagesPanel } from "@/components/shop/PromoImagesPanel";
 import { PcZonePanel } from "@/components/shop/PcZonePanel";
@@ -43,6 +44,7 @@ const TAB_TITLE: Record<Tab, string> = {
   pos: "ขายสินค้า",
   stock: "คลังสินค้า",
   report: "บัญชีและสรุปยอด",
+  expense: "รายจ่าย",
   members: "สมาชิกและแต้มสะสม",
   line: "แจ้งเตือน LINE",
   coupons: "คูปอง",
@@ -206,11 +208,13 @@ function Index() {
             ) : effTab === "members" ? (
               <MembersPanel />
             ) : effTab === "report" ? (
-              <ReportPanel hideTotals={!isAdmin} />
+              <ReportPanel hideTotals={!isAdmin} isAdmin={isAdmin} />
             ) : effTab === "screen" ? (
               <PromoImagesPanel />
             ) : !isAdmin ? (
               <div className="alert alert-warning">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</div>
+            ) : effTab === "expense" ? (
+              <ExpensesPanel />
             ) : effTab === "coupons" ? (
               <CouponsPanel />
             ) : effTab === "res" ? (
@@ -219,7 +223,6 @@ function Index() {
               <PromotionPanel />
             ) : effTab === "line" ? (
               <LineSettingsPanel />
-
             ) : effTab === "users" ? (
               <UsersPanel />
             ) : (

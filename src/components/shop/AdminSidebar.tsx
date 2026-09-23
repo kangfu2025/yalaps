@@ -19,6 +19,7 @@ import {
   X,
   IdCard,
   MessageCircle,
+  Wallet,
 } from "lucide-react";
 
 export type Tab =
@@ -29,6 +30,7 @@ export type Tab =
   | "coupons"
   | "res"
   | "report"
+  | "expense"
   | "promo"
   | "screen"
   | "users"
@@ -47,6 +49,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { key: "stock", label: "คลังสินค้า", icon: Package },
       { key: "members", label: "สมาชิก", icon: IdCard },
       { key: "report", label: "บัญชีและสรุปยอด", icon: BarChart3 },
+      { key: "expense", label: "รายจ่าย", icon: Wallet, adminOnly: true },
     ],
   },
   {

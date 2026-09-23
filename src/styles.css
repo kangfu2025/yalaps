@@ -3070,3 +3070,512 @@ label.small {
     animation: none;
   }
 }
+
+/* ============================================================
+   บัญชีรายรับ-รายจ่าย และกำไรสุทธิรายเดือน
+   ใช้โทนเดียวกับการ์ดรายงานเดิม (yl-rep-*) ให้หน้าตาเป็นชุดเดียวกัน
+   ============================================================ */
+
+/* ---- ตัวเลื่อนเดือน ---- */
+.yl-month-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.yl-month-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(168, 85, 247, 0.28);
+  background: rgba(28, 18, 51, 0.85);
+  color: #e9e7f7;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.yl-month-btn:hover:not(:disabled) {
+  background: rgba(168, 85, 247, 0.22);
+  border-color: rgba(168, 85, 247, 0.55);
+}
+.yl-month-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.yl-month-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 190px;
+  justify-content: center;
+  padding: 8px 18px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 1.02rem;
+  color: #fff;
+  background: linear-gradient(150deg, rgba(28, 18, 51, 0.95), rgba(15, 10, 30, 0.95));
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+.yl-month-ico {
+  color: #c4b5fd;
+  flex: none;
+}
+.yl-month-today {
+  border: none;
+  background: none;
+  color: #a78bfa;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* ---- แถบหัวหน้ารายจ่าย ---- */
+.yl-fin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.yl-fin-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ---- การ์ดสรุปเล็กบนหน้ารายจ่าย ---- */
+.yl-fin-strip {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  margin-bottom: 14px;
+}
+.yl-fin-stat {
+  position: relative;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: linear-gradient(150deg, rgba(28, 18, 51, 0.92), rgba(15, 10, 30, 0.92));
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  overflow: hidden;
+}
+.yl-fin-stat::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+}
+.yl-fin-stat.is-out::before {
+  background: linear-gradient(180deg, #fb7185, #f43f5e);
+}
+.yl-fin-stat.is-in::before {
+  background: linear-gradient(180deg, #34d399, #10b981);
+}
+.yl-fin-stat-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #b7b3d6;
+  margin-bottom: 4px;
+}
+.yl-fin-stat-value {
+  display: block;
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: #fff;
+}
+.yl-fin-stat.is-out .yl-fin-stat-value {
+  color: #fda4af;
+}
+.yl-fin-stat.is-in .yl-fin-stat-value {
+  color: #6ee7b7;
+}
+.yl-fin-stat-sub {
+  display: block;
+  font-size: 0.76rem;
+  color: #9d99bd;
+  margin-top: 2px;
+}
+
+/* ---- ชิปหมวดรายจ่าย ---- */
+.yl-fin-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.yl-fin-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(168, 85, 247, 0.22);
+  background: rgba(28, 18, 51, 0.8);
+  color: #d9d6ee;
+  font-size: 0.84rem;
+}
+.yl-fin-chip b {
+  color: #fda4af;
+  font-weight: 800;
+}
+.yl-fin-chip.active {
+  border-color: rgba(168, 85, 247, 0.75);
+  background: rgba(168, 85, 247, 0.2);
+  color: #fff;
+}
+.yl-fin-chip-n {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(168, 85, 247, 0.35);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+/* ---- แถวที่ถูกยกเลิก (ไม่ได้ลบจริง) ---- */
+.yl-fin-void {
+  opacity: 0.5;
+}
+.yl-fin-void td {
+  text-decoration: line-through;
+}
+.yl-fin-void td:last-child {
+  text-decoration: none;
+}
+
+/* ---- กล่องค่าแรงรายคน ---- */
+.yl-fin-wage {
+  border: 1px solid rgba(168, 85, 247, 0.18);
+  border-radius: 14px;
+  padding: 10px 14px;
+  margin-top: 12px;
+  background: rgba(15, 10, 30, 0.5);
+}
+.yl-fin-wage-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.yl-fin-wage-name {
+  font-weight: 800;
+  color: #fff;
+}
+.yl-fin-wage-meta {
+  font-size: 0.78rem;
+  color: #9d99bd;
+}
+.yl-fin-wage-total {
+  margin-left: auto;
+  color: #fda4af;
+  font-weight: 800;
+}
+
+/* ---- ปุ่มเลือกหมวดในฟอร์ม ---- */
+.yl-fin-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.yl-fin-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  background: rgba(28, 18, 51, 0.7);
+  color: #d9d6ee;
+  font-size: 0.82rem;
+}
+.yl-fin-cat.active {
+  border-color: rgba(168, 85, 247, 0.85);
+  background: rgba(168, 85, 247, 0.28);
+  color: #fff;
+  font-weight: 700;
+}
+.yl-fin-cat-ico {
+  font-size: 0.95rem;
+}
+
+/* ---- ตัวเลขใหญ่สามตัวของหน้าสรุป ---- */
+.yl-pnl-kpis {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  margin-bottom: 14px;
+}
+.yl-pnl-kpi {
+  position: relative;
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: linear-gradient(150deg, rgba(28, 18, 51, 0.92), rgba(15, 10, 30, 0.92));
+  border: 1px solid rgba(168, 85, 247, 0.22);
+  box-shadow: 0 10px 30px -18px rgba(168, 85, 247, 0.55);
+  overflow: hidden;
+}
+.yl-pnl-kpi::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+}
+.yl-pnl-kpi.is-in::before {
+  background: linear-gradient(180deg, #34d399, #10b981);
+}
+.yl-pnl-kpi.is-out::before {
+  background: linear-gradient(180deg, #fb7185, #f43f5e);
+}
+.yl-pnl-kpi.is-profit::before {
+  background: linear-gradient(180deg, #fbbf24, #f59e0b);
+}
+.yl-pnl-kpi.is-loss::before {
+  background: linear-gradient(180deg, #f43f5e, #b91c1c);
+}
+.yl-pnl-kpi-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #b7b3d6;
+  margin-bottom: 6px;
+}
+.yl-pnl-kpi-value {
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: #fff;
+}
+.yl-pnl-kpi.is-in .yl-pnl-kpi-value {
+  color: #6ee7b7;
+}
+.yl-pnl-kpi.is-out .yl-pnl-kpi-value {
+  color: #fda4af;
+}
+.yl-pnl-kpi.is-profit .yl-pnl-kpi-value {
+  color: #fbbf24;
+}
+.yl-pnl-kpi.is-loss .yl-pnl-kpi-value {
+  color: #f87171;
+}
+.yl-pnl-kpi-unit {
+  font-size: 0.8rem;
+  color: #9d99bd;
+  margin-left: 6px;
+}
+
+/* ---- สองคอลัมน์รายรับ/รายจ่าย ---- */
+.yl-pnl-cols {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+}
+.yl-pnl-table {
+  width: 100%;
+  font-size: 0.9rem;
+}
+.yl-pnl-table td {
+  padding: 6px 0;
+  border-bottom: 1px dashed rgba(168, 85, 247, 0.14);
+  color: #d9d6ee;
+}
+.yl-pnl-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-weight: 700;
+  color: #fff;
+}
+.yl-pnl-table tfoot td {
+  border-top: 2px solid rgba(168, 85, 247, 0.4);
+  border-bottom: none;
+  padding-top: 9px;
+  font-weight: 800;
+  color: #fff;
+}
+.yl-pnl-n {
+  margin-left: 7px;
+  font-size: 0.74rem;
+  font-style: normal;
+  color: #9d99bd;
+}
+.yl-pnl-none {
+  color: #9d99bd;
+  text-align: center;
+  padding: 16px 0;
+}
+.yl-pnl-pay {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: #b7b3d6;
+}
+
+/* ---- บรรทัดสรุปกำไรสุทธิ ---- */
+.yl-pnl-final {
+  margin-top: 14px;
+  padding: 16px 20px;
+  border-radius: 18px;
+  background: rgba(15, 10, 30, 0.8);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+.yl-pnl-final-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  color: #d9d6ee;
+  font-variant-numeric: tabular-nums;
+}
+.yl-pnl-final-row b {
+  font-weight: 800;
+  color: #fff;
+}
+.yl-pnl-final-row b.neg {
+  color: #fda4af;
+}
+.yl-pnl-final-row.is-net {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 3px double rgba(168, 85, 247, 0.55);
+  font-size: 1.12rem;
+  font-weight: 800;
+}
+.yl-pnl-final.is-profit .yl-pnl-final-row.is-net b {
+  color: #fbbf24;
+}
+.yl-pnl-final.is-loss .yl-pnl-final-row.is-net b {
+  color: #f87171;
+}
+
+/* ---- หมายเหตุบิลค้าง ---- */
+.yl-pnl-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 11px 15px;
+  border-radius: 14px;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: #fcd9a0;
+  font-size: 0.84rem;
+  line-height: 1.7;
+}
+.yl-pnl-note svg {
+  flex: none;
+  margin-top: 3px;
+}
+
+/* ---- ตารางสรุปรายปี ---- */
+.yl-pnl-year tbody tr.is-current {
+  background: rgba(168, 85, 247, 0.16);
+}
+.yl-pnl-year tbody tr.is-empty td {
+  color: #6f6b91;
+}
+.yl-pnl-year tfoot td {
+  border-top: 2px solid rgba(168, 85, 247, 0.4);
+  font-weight: 800;
+  color: #fff;
+}
+
+@media (max-width: 575.98px) {
+  .yl-month-label {
+    min-width: 0;
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 0.95rem;
+  }
+  .yl-month-nav {
+    width: 100%;
+  }
+  .yl-fin-head {
+    align-items: stretch;
+  }
+  .yl-fin-actions {
+    width: 100%;
+  }
+  .yl-fin-actions .btn {
+    flex: 1;
+    justify-content: center;
+  }
+  .yl-pnl-kpi-value {
+    font-size: 1.6rem;
+  }
+}
+
+/* ---- การ์ดสรุปเพิ่มเติมในหน้ารายจ่าย ---- */
+.yl-fin-stat.is-rent::before {
+  background: linear-gradient(180deg, #38bdf8, #6366f1);
+}
+.yl-fin-stat.is-rent .yl-fin-stat-value {
+  color: #7dd3fc;
+}
+.yl-fin-stat.is-profit::before {
+  background: linear-gradient(180deg, #fbbf24, #f59e0b);
+}
+.yl-fin-stat.is-profit .yl-fin-stat-value {
+  color: #fbbf24;
+}
+.yl-fin-stat.is-loss::before {
+  background: linear-gradient(180deg, #f43f5e, #b91c1c);
+}
+.yl-fin-stat.is-loss .yl-fin-stat-value {
+  color: #f87171;
+}
+
+/* ---- แถวบอกว่ารายรับมาจากไหน ---- */
+.yl-fin-src {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.yl-fin-src-head {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #9d99bd;
+}
+.yl-fin-src-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  background: rgba(16, 185, 129, 0.1);
+  color: #d9d6ee;
+  font-size: 0.82rem;
+}
+.yl-fin-src-pill b {
+  color: #6ee7b7;
+  font-weight: 800;
+}
+
+.yl-fin-hint {
+  margin-bottom: 14px;
+  padding: 10px 15px;
+  border-radius: 14px;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: #fcd9a0;
+  font-size: 0.82rem;
+  line-height: 1.7;
+}
