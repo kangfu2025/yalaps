@@ -16,26 +16,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 export type Zone = "sofa" | "racing" | "pc";
 export type MachineStatus = "idle" | "playing";
 
-export type CouponStatus = "active" | "in_use" | "expired" | "depleted" | "cancelled";
-
-export interface Coupon {
-  id: string;
-  code: string;
-  customer_name: string | null;
-  customer_phone: string | null;
-  total_minutes: number;
-  remaining_minutes: number;
-  price_paid: number;
-  paid_cash: number;
-  paid_transfer: number;
-  paid_at: string;
-  expires_at: string | null;
-  status: CouponStatus;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 export type PcCommandType =
   "lock" | "unlock" | "warn" | "shutdown" | "show_countdown" | "end_session";
 export type PcSessionStatus = "playing" | "ended" | "force_ended" | "cancelled";

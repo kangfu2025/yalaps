@@ -6,8 +6,6 @@ import {
   ShoppingCart,
   Package,
   BarChart3,
-  Ticket,
-  CalendarDays,
   Tag,
   Image as ImageIcon,
   Users,
@@ -27,8 +25,6 @@ export type Tab =
   | "pc"
   | "pos"
   | "stock"
-  | "coupons"
-  | "res"
   | "report"
   | "expense"
   | "promo"
@@ -55,8 +51,6 @@ const GROUPS: { title: string; items: Item[] }[] = [
   {
     title: "ผู้ดูแลระบบ",
     items: [
-      { key: "coupons", label: "คูปอง", icon: Ticket, adminOnly: true },
-      { key: "res", label: "คิวจองล่วงหน้า", icon: CalendarDays, adminOnly: true },
       { key: "promo", label: "โปรโมชั่น", icon: Tag, adminOnly: true },
       { key: "screen", label: "รูปหน้าจอ", icon: ImageIcon },
       { key: "line", label: "แจ้งเตือน LINE", icon: MessageCircle, adminOnly: true },

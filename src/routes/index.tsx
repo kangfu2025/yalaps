@@ -5,13 +5,11 @@ import { useShopData } from "@/hooks/useShopData";
 import { MachineCard } from "@/components/shop/MachineCard";
 import { StartModal } from "@/components/shop/StartModal";
 import { ManageModal } from "@/components/shop/ManageModal";
-import { ReservationsPanel } from "@/components/shop/ReservationsPanel";
 import { ReportPanel } from "@/components/shop/ReportPanel";
 import { ExpensesPanel } from "@/components/shop/ExpensesPanel";
 import { PromotionPanel } from "@/components/shop/PromotionPanel";
 import { PromoImagesPanel } from "@/components/shop/PromoImagesPanel";
 import { PcZonePanel } from "@/components/shop/PcZonePanel";
-import { CouponsPanel } from "@/components/shop/CouponsPanel";
 import { UsersPanel } from "@/components/shop/UsersPanel";
 import { MembersPanel } from "@/components/shop/MembersPanel";
 import { LineSettingsPanel } from "@/components/shop/LineSettingsPanel";
@@ -47,8 +45,6 @@ const TAB_TITLE: Record<Tab, string> = {
   expense: "รายจ่าย",
   members: "สมาชิกและแต้มสะสม",
   line: "แจ้งเตือน LINE",
-  coupons: "คูปอง",
-  res: "คิวจองล่วงหน้า",
   promo: "โปรโมชั่น",
   screen: "รูปหน้าจอ",
   users: "ผู้ใช้งาน",
@@ -215,10 +211,6 @@ function Index() {
               <div className="alert alert-warning">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</div>
             ) : effTab === "expense" ? (
               <ExpensesPanel />
-            ) : effTab === "coupons" ? (
-              <CouponsPanel />
-            ) : effTab === "res" ? (
-              <ReservationsPanel />
             ) : effTab === "promo" ? (
               <PromotionPanel />
             ) : effTab === "line" ? (
