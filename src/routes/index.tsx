@@ -7,6 +7,9 @@ import { StartModal } from "@/components/shop/StartModal";
 import { ManageModal } from "@/components/shop/ManageModal";
 import { ReportPanel } from "@/components/shop/ReportPanel";
 import { ExpensesPanel } from "@/components/shop/ExpensesPanel";
+import { ShiftsPanel } from "@/components/shop/ShiftsPanel";
+import { ShopBar } from "@/components/shop/ShopDrawer";
+import { ShopProvider, useShop } from "@/hooks/useShop";
 import { PromotionPanel } from "@/components/shop/PromotionPanel";
 import { PromoImagesPanel } from "@/components/shop/PromoImagesPanel";
 import { PcZonePanel } from "@/components/shop/PcZonePanel";
@@ -43,6 +46,7 @@ const TAB_TITLE: Record<Tab, string> = {
   stock: "คลังสินค้า",
   report: "บัญชีและสรุปยอด",
   expense: "รายจ่าย",
+  drawer: "เปิด-ปิดร้าน / เงินในลิ้นชัก",
   members: "สมาชิกและแต้มสะสม",
   line: "แจ้งเตือน LINE",
   promo: "โปรโมชั่น",
@@ -60,12 +64,17 @@ function IndexGuarded() {
 
   if (loading) return <div className="text-center py-5 text-muted">กำลังตรวจสอบสิทธิ์...</div>;
   if (!user) return null;
-  return <Index />;
+  return (
+    <ShopProvider>
+      <Index />
+    </ShopProvider>
+  );
 }
 
 function Index() {
   const { machines, resByMachine, activePromotion, loading, error, refresh } = useShopData();
   const { username, role, signOut } = useAuth();
+  const { guardStart } = useShop();
   const navigate = useNavigate();
   const isAdmin = role === "admin";
   const [tab, setTab] = useState<Tab>("dash");
@@ -161,6 +170,9 @@ function Index() {
               </div>
             )}
 
+            {/* สถานะร้าน + ปุ่มเปิด/ปิดร้าน — เห็นทุกครั้งที่อยู่หน้าที่เปิดเครื่องได้ */}
+            {(effTab === "dash" || effTab === "pc") && <ShopBar isAdmin={isAdmin} />}
+
             {loading ? (
               <div className="text-center py-5 text-muted">กำลังโหลด...</div>
             ) : effTab === "dash" ? (
@@ -173,7 +185,10 @@ function Index() {
                       machine={m}
                       reservation={resByMachine.get(m.id)}
                       priceOverride={sofaOverride}
-                      onStart={setStartTarget}
+                      onStart={(mc) => {
+                        // ร้านปิดอยู่ -> แจ้งเตือนตั้งแต่ตรงนี้ ไม่ให้ไปถึงขั้นรับเงินลูกค้า
+                        if (guardStart()) setStartTarget(mc);
+                      }}
                       onManage={(machine, r) => setManageTarget({ m: machine, r })}
                       onCancel={(m, r) => setCancelTarget({ m, r })}
                     />
@@ -188,7 +203,10 @@ function Index() {
                       machine={m}
                       reservation={resByMachine.get(m.id)}
                       priceOverride={racingOverride}
-                      onStart={setStartTarget}
+                      onStart={(mc) => {
+                        // ร้านปิดอยู่ -> แจ้งเตือนตั้งแต่ตรงนี้ ไม่ให้ไปถึงขั้นรับเงินลูกค้า
+                        if (guardStart()) setStartTarget(mc);
+                      }}
                       onManage={(machine, r) => setManageTarget({ m: machine, r })}
                       onCancel={(m, r) => setCancelTarget({ m, r })}
                     />
@@ -211,6 +229,8 @@ function Index() {
               <div className="alert alert-warning">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</div>
             ) : effTab === "expense" ? (
               <ExpensesPanel />
+            ) : effTab === "drawer" ? (
+              <ShiftsPanel />
             ) : effTab === "promo" ? (
               <PromotionPanel />
             ) : effTab === "line" ? (

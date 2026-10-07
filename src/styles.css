@@ -3648,3 +3648,305 @@ label.small {
   max-height: 100vh;
   max-width: 177.78vh;
 }
+
+/* ============================================================
+   เปิดร้าน / ปิดร้าน / เงินในลิ้นชัก
+   ============================================================ */
+.yl-shop-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  border-radius: 18px;
+  background: linear-gradient(150deg, rgba(28, 18, 51, 0.95), rgba(15, 10, 30, 0.95));
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+.yl-shop-bar.is-open {
+  border-color: rgba(52, 211, 153, 0.55);
+  box-shadow: 0 10px 30px -20px rgba(52, 211, 153, 0.8);
+}
+.yl-shop-bar.is-closed {
+  border-color: rgba(244, 63, 94, 0.6);
+  box-shadow: 0 10px 30px -20px rgba(244, 63, 94, 0.9);
+}
+.yl-shop-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.yl-shop-dot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+.yl-shop-bar.is-open .yl-shop-dot {
+  background: #34d399;
+  box-shadow: 0 0 0 5px rgba(52, 211, 153, 0.2);
+}
+.yl-shop-bar.is-closed .yl-shop-dot {
+  background: #f43f5e;
+  box-shadow: 0 0 0 5px rgba(244, 63, 94, 0.2);
+}
+.yl-shop-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: #fff;
+}
+.yl-shop-sub {
+  font-size: 0.8rem;
+  color: #b7b3d6;
+}
+.yl-shop-cash {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.3;
+}
+.yl-shop-cash span {
+  font-size: 0.74rem;
+  color: #9d99bd;
+}
+.yl-shop-cash b {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #fbbf24;
+  font-variant-numeric: tabular-nums;
+}
+.yl-shop-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.yl-shop-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---- ตารางนับธนบัตร/เหรียญ ---- */
+.yl-cash-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 6px;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+.yl-cash-head:first-child {
+  margin-top: 0;
+}
+.yl-cash-head em {
+  font-style: normal;
+  font-weight: 400;
+  opacity: 0.65;
+}
+.yl-cash-row {
+  display: grid;
+  grid-template-columns: minmax(84px, 1fr) auto minmax(86px, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+.yl-cash-denom {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.yl-cash-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.yl-cash-qty button {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  background: rgba(168, 85, 247, 0.12);
+  color: inherit;
+}
+.yl-cash-qty button:disabled {
+  opacity: 0.35;
+}
+.yl-cash-qty input {
+  width: 68px;
+  height: 36px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  -moz-appearance: textfield;
+}
+.yl-cash-qty input::-webkit-outer-spin-button,
+.yl-cash-qty input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.yl-cash-sub {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+.yl-cash-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  font-weight: 700;
+}
+.yl-cash-total b {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #fbbf24;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- สรุปลิ้นชัก ---- */
+.yl-drawer-sum {
+  border-radius: 14px;
+  padding: 10px 16px;
+  background: rgba(15, 10, 30, 0.55);
+  border: 1px solid rgba(168, 85, 247, 0.22);
+  color: #e9e7f7;
+}
+.yl-drawer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  font-variant-numeric: tabular-nums;
+}
+.yl-drawer-row span em {
+  display: block;
+  font-style: normal;
+  font-size: 0.74rem;
+  color: #9d99bd;
+}
+.yl-drawer-row b {
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+}
+.yl-drawer-row b.pos {
+  color: #6ee7b7;
+}
+.yl-drawer-row b.neg {
+  color: #fda4af;
+}
+.yl-drawer-row.is-total {
+  margin-top: 4px;
+  padding-top: 9px;
+  border-top: 2px solid rgba(168, 85, 247, 0.45);
+  font-weight: 800;
+}
+.yl-drawer-row.is-total b {
+  color: #fbbf24;
+  font-size: 1.1rem;
+}
+.yl-drawer-row.is-diff {
+  margin-top: 4px;
+  padding-top: 9px;
+  border-top: 1px dashed rgba(168, 85, 247, 0.35);
+}
+.yl-diff {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.yl-diff.is-ok,
+.yl-diff.is-over {
+  background: rgba(16, 185, 129, 0.16);
+  color: #6ee7b7;
+}
+.yl-diff.is-short {
+  background: rgba(244, 63, 94, 0.18);
+  color: #fda4af;
+}
+
+/* ---- ประวัติรอบ ---- */
+.yl-shift {
+  border-radius: 16px;
+  margin-bottom: 10px;
+  background: rgba(28, 18, 51, 0.78);
+  border: 1px solid rgba(168, 85, 247, 0.18);
+  color: #e9e7f7;
+  overflow: hidden;
+}
+.yl-shift-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  color: inherit;
+  text-align: left;
+}
+.yl-shift-date {
+  display: flex;
+  flex-direction: column;
+  min-width: 130px;
+}
+.yl-shift-date span {
+  font-size: 0.78rem;
+  color: #9d99bd;
+  font-variant-numeric: tabular-nums;
+}
+.yl-shift-who {
+  flex: 1 1 160px;
+  font-size: 0.82rem;
+  color: #b7b3d6;
+}
+.yl-shift-body {
+  padding: 4px 16px 16px;
+}
+.yl-shift-counts {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  margin-top: 14px;
+}
+
+@media (max-width: 575.98px) {
+  .yl-shop-cash {
+    align-items: flex-start;
+    flex: 1 1 100%;
+  }
+  .yl-shop-actions {
+    width: 100%;
+  }
+  .yl-shop-actions .btn {
+    flex: 1;
+    justify-content: center;
+  }
+  .yl-cash-row {
+    gap: 6px;
+  }
+  .yl-cash-qty input {
+    width: 58px;
+  }
+}

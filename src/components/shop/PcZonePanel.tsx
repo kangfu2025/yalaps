@@ -1,3 +1,4 @@
+import { useShop } from "@/hooks/useShop";
 import { useEffect, useState } from "react";
 import {
   Monitor,
@@ -120,6 +121,7 @@ interface Props {
 
 export function PcZonePanel({ machines }: Props) {
   const { role } = useAuth();
+  const { guardStart } = useShop();
   const isAdmin = role === "admin";
   const [agents, setAgents] = useState<PcAgent[]>([]);
   const [sessions, setSessions] = useState<PcSession[]>([]);
@@ -281,7 +283,9 @@ export function PcZonePanel({ machines }: Props) {
                   <div className="pcz-actions">
                     <button
                       className="pcz-btn pcz-btn-solid pcz-wide"
-                      onClick={() => setStartTarget(m)}
+                      onClick={() => {
+                        if (guardStart()) setStartTarget(m);
+                      }}
                     >
                       <Play size={15} /> เริ่มเปิดเครื่อง
                     </button>

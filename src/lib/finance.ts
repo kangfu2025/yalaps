@@ -73,6 +73,8 @@ export interface Expense {
   pay_method: PayMethod;
   staff_name: string | null;
   note: string | null;
+  /** จ่ายจากเงินในลิ้นชัก (มีเมื่อรัน shop_shift_migration.sql แล้ว) */
+  from_drawer?: boolean;
   status: RecordStatus;
   created_by: string | null;
   created_at: string;
@@ -88,6 +90,7 @@ export interface OtherIncome {
   period_month: string;
   pay_method: PayMethod;
   note: string | null;
+  to_drawer?: boolean;
   status: RecordStatus;
   received_at: string;
   created_at: string;
@@ -337,6 +340,12 @@ export interface ExpenseInput {
   occurredLocal?: string;
   staffName?: string | null;
   note?: string | null;
+  /**
+   * เงินสดก้อนนี้หยิบจากลิ้นชักร้านหรือเปล่า (ระบบเปิด-ปิดร้าน)
+   * ไม่ส่งมา = ไม่แตะคอลัมน์นี้ ร้านที่ยังไม่ได้รัน shop_shift_migration.sql จึงใช้ได้ตามเดิม
+   * ธงนี้มีผลกับยอดลิ้นชักเท่านั้น ไม่มีผลต่อรายจ่ายหรือกำไรสุทธิ
+   */
+  fromDrawer?: boolean;
 }
 
 function validateExpense(input: ExpenseInput) {
@@ -344,6 +353,12 @@ function validateExpense(input: ExpenseInput) {
   if (input.category === "wage" && !input.staffName?.trim()) {
     throw new Error("ค่าแรงพนักงานต้องระบุชื่อพนักงาน");
   }
+}
+
+/** จ่ายจากลิ้นชักได้เฉพาะเงินสด — เงินโอนไม่เคยผ่านลิ้นชัก */
+function drawerFlag(input: ExpenseInput): { from_drawer?: boolean } {
+  if (input.fromDrawer === undefined) return {};
+  return { from_drawer: input.payMethod === "cash" && input.fromDrawer };
 }
 
 export async function addExpense(input: ExpenseInput): Promise<Expense> {
@@ -359,6 +374,7 @@ export async function addExpense(input: ExpenseInput): Promise<Expense> {
     staff_name: input.category === "wage" ? (input.staffName?.trim() ?? null) : null,
     note: input.note?.trim() || null,
     created_by: sess.user?.id ?? null,
+    ...drawerFlag(input),
   };
   const { data, error } = await supabase.from("expenses").insert(row).select().single();
   if (error) throwIfMissing(error);
@@ -374,6 +390,7 @@ export async function updateExpense(id: string, input: ExpenseInput): Promise<Ex
     ...(input.occurredLocal ? { occurred_at: localInputToIso(input.occurredLocal) } : {}),
     staff_name: input.category === "wage" ? (input.staffName?.trim() ?? null) : null,
     note: input.note?.trim() || null,
+    ...drawerFlag(input),
   };
   const { data, error } = await supabase
     .from("expenses")
@@ -422,6 +439,8 @@ export interface OtherIncomeInput {
   month: string;
   payMethod: PayMethod;
   note?: string | null;
+  /** เงินสดก้อนนี้เก็บเข้าลิ้นชักร้านหรือเปล่า — ไม่ส่งมา = ไม่แตะคอลัมน์นี้ */
+  toDrawer?: boolean;
 }
 
 export async function addOtherIncome(input: OtherIncomeInput): Promise<OtherIncome> {
@@ -437,6 +456,9 @@ export async function addOtherIncome(input: OtherIncomeInput): Promise<OtherInco
       pay_method: input.payMethod,
       note: input.note?.trim() || null,
       created_by: sess.user?.id ?? null,
+      ...(input.toDrawer === undefined
+        ? {}
+        : { to_drawer: input.payMethod === "cash" && input.toDrawer }),
     })
     .select()
     .single();

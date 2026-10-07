@@ -1,3 +1,4 @@
+import { assertShopOpen } from "./shopShift";
 import { supabase, type Reservation, type Zone } from "./supabase";
 import { markMachinePlaying, resetMachineToIdle } from "./machines";
 import { notifyLine } from "./lineNotify";
@@ -48,6 +49,8 @@ export interface StartSessionInput {
 }
 
 export async function startSession(input: StartSessionInput): Promise<Reservation> {
+  // ร้านยังไม่เปิด = ไม่เริ่มอะไรทั้งนั้น (เช็กก่อนหักแต้ม) — ด่านจริงคือ trigger ในฐานข้อมูล
+  await assertShopOpen();
   const now = new Date();
   const endMs = now.getTime() + input.baseHours * 3600 * 1000;
 

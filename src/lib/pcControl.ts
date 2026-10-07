@@ -1,3 +1,4 @@
+import { assertShopOpen } from "./shopShift";
 import { supabase, type PcAgent, type PcCommand, type PcCommandType, type PcSession } from "./supabase";
 import { awardPoints, getMember } from "./members";
 import { notifyLine } from "./lineNotify";
@@ -91,6 +92,8 @@ export async function startPcSession(opts: {
   redeemedPoints?: boolean;
   memberId?: string | null;
 }) {
+  // ร้านยังไม่เปิด = ไม่เริ่ม session — ด่านจริงคือ trigger ในฐานข้อมูล
+  await assertShopOpen();
   const now = new Date();
   const ends = new Date(now.getTime() + opts.minutes * 60_000);
   const price = opts.price ?? calcPcPrice(opts.minutes);

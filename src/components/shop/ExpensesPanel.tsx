@@ -15,6 +15,7 @@ import {
   Scale,
 } from "lucide-react";
 import { formatBaht } from "@/lib/priceEngine";
+import { useShop } from "@/hooks/useShop";
 import { MonthStepper } from "./MonthStepper";
 import { ConfirmDialog } from "./ConfirmDialog";
 import {
@@ -498,7 +499,17 @@ function ExpenseTable({
                 <span className="text-muted">{r.note || (r.staff_name ? "" : "—")}</span>
                 {r.status === "void" && <span className="badge bg-secondary ms-2">ยกเลิกแล้ว</span>}
               </td>
-              <td className="small text-nowrap">{PAY_LABEL[r.pay_method]}</td>
+              <td className="small text-nowrap">
+                {PAY_LABEL[r.pay_method]}
+                {r.from_drawer && (
+                  <span
+                    className="badge bg-warning text-dark ms-1"
+                    title="จ่ายจากเงินในลิ้นชักร้าน"
+                  >
+                    ลิ้นชัก
+                  </span>
+                )}
+              </td>
               <td className="text-end fw-bold text-danger text-nowrap">-{formatBaht(r.amount)}</td>
               <td className="text-end text-nowrap">
                 <button
@@ -639,6 +650,14 @@ function ExpenseModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ระบบเปิด-ปิดร้าน: เงินสดก้อนนี้หยิบจากลิ้นชักหรือเปล่า
+  // รายการใหม่ตอนร้านเปิดอยู่ ตั้งต้นเป็น "จากลิ้นชัก" เพราะเป็นกรณีที่เจอบ่อยสุด
+  const { status: shop, refresh: refreshShop } = useShop();
+  const drawerOn = !!shop?.installed;
+  const [fromDrawer, setFromDrawer] = useState<boolean>(
+    initial ? !!initial.from_drawer : !!shop?.open,
+  );
+
   async function save() {
     setBusy(true);
     setError(null);
@@ -650,9 +669,11 @@ function ExpenseModal({
         occurredLocal: occurred,
         staffName,
         note,
+        ...(drawerOn ? { fromDrawer } : {}),
       };
       if (initial) await updateExpense(initial.id, input);
       else await addExpense(input);
+      if (drawerOn) void refreshShop();
       onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -747,6 +768,32 @@ function ExpenseModal({
             </div>
           </div>
 
+          {drawerOn && payMethod === "cash" && (
+            <div className="mb-3">
+              <label className="form-label small fw-bold">เงินสดก้อนนี้มาจากไหน</label>
+              <div className="btn-group w-100" role="group">
+                <button
+                  type="button"
+                  className={`btn ${fromDrawer ? "btn-warning" : "btn-outline-warning"}`}
+                  onClick={() => setFromDrawer(true)}
+                >
+                  🗄️ จ่ายจากลิ้นชักร้าน
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${!fromDrawer ? "btn-secondary" : "btn-outline-secondary"}`}
+                  onClick={() => setFromDrawer(false)}
+                >
+                  ไม่ได้ใช้เงินในลิ้นชัก
+                </button>
+              </div>
+              <div className="form-text">
+                มีผลกับยอด “เงินที่ควรมีในลิ้นชัก” เท่านั้น —
+                รายจ่ายและกำไรสุทธิคิดเหมือนเดิมทั้งสองแบบ
+              </div>
+            </div>
+          )}
+
           <div className="mb-3">
             <label className="form-label small fw-bold">วันที่/เวลา</label>
             <input
@@ -807,6 +854,9 @@ function RoomRentModal({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { status: shop, refresh: refreshShop } = useShop();
+  const drawerOn = !!shop?.installed;
+  const [toDrawer, setToDrawer] = useState(false);
 
   async function save() {
     setBusy(true);
@@ -818,7 +868,9 @@ function RoomRentModal({
         month: m,
         payMethod,
         note,
+        ...(drawerOn ? { toDrawer } : {}),
       });
+      if (drawerOn) void refreshShop();
       onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -893,6 +945,25 @@ function RoomRentModal({
               </button>
             </div>
           </div>
+
+          {drawerOn && payMethod === "cash" && (
+            <div className="form-check mb-3">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id="rentToDrawer"
+                checked={toDrawer}
+                onChange={(e) => setToDrawer(e.target.checked)}
+              />
+              <label className="form-check-label small" htmlFor="rentToDrawer">
+                เก็บเงินสดก้อนนี้เข้าลิ้นชักร้าน
+                <span className="text-muted">
+                  {" "}
+                  — ติ๊กเฉพาะเมื่อเอาเงินใส่ลิ้นชักจริง (มีผลกับยอดลิ้นชักเท่านั้น)
+                </span>
+              </label>
+            </div>
+          )}
 
           <div className="mb-3">
             <label className="form-label small fw-bold">หมายเหตุ (ไม่บังคับ)</label>
