@@ -7,6 +7,7 @@ import {
   DENOMS,
   listShifts,
   listWithdrawals,
+  withdrawToast,
   fmtShiftDate,
   fmtShiftTime,
   type CashCounts,
@@ -16,7 +17,7 @@ import {
 
 /** ประวัติเปิด-ปิดร้าน และเงินในลิ้นชัก — เฉพาะแอดมิน */
 export function ShiftsPanel() {
-  const { status, refresh } = useShop();
+  const { status, refresh, notify } = useShop();
   const [shifts, setShifts] = useState<ShopShift[]>([]);
   const [withdrawals, setWithdrawals] = useState<CashWithdrawal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -219,10 +220,11 @@ export function ShiftsPanel() {
       {withdrawing && (
         <WithdrawModal
           onClose={() => setWithdrawing(false)}
-          onDone={async () => {
+          onDone={async (r) => {
             setWithdrawing(false);
             await refresh();
             await load();
+            if (r) notify(withdrawToast(r));
           }}
         />
       )}

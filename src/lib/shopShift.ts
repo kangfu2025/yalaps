@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { formatBaht } from "./priceEngine";
 
 /**
  * เปิดร้าน / ปิดร้าน / เงินในลิ้นชัก
@@ -92,6 +93,23 @@ export interface CloseResult extends DrawerCash {
 
 export const SHOP_CLOSED_MESSAGE = "กรุณาเปิดร้านก่อนเริ่มใช้งานเครื่อง";
 
+/** error นี้มาจากร้านปิด (ด่านหน้าเว็บ หรือ trigger ในฐานข้อมูล) ใช่ไหม — ใช้เลือกแสดงหน้าต่างเปิดร้านแทน alert */
+export function isShopClosedError(e: unknown): boolean {
+  const msg = (e as { message?: string } | null)?.message ?? String(e ?? "");
+  const hint = (e as { hint?: string } | null)?.hint ?? "";
+  return hint === "SHOP_CLOSED" || msg.includes(SHOP_CLOSED_MESSAGE);
+}
+
+/** บิลที่ยังไม่ปิด — แสดงตอนปิดร้านไม่ได้ ให้รู้ว่าค้างที่เครื่องไหน */
+export interface OpenBill {
+  id: string;
+  kind: "ps5" | "pc";
+  zone: string;
+  machine_number: number | null;
+  customer_name: string | null;
+  started_at: string;
+}
+
 const NOT_INSTALLED: ShopStatus = {
   installed: false,
   gate: false,
@@ -144,16 +162,24 @@ export async function closeShop(counts: CashCounts, note?: string): Promise<Clos
   return data as CloseResult;
 }
 
-export async function withdrawFromDrawer(
-  amount: number,
-  note?: string,
-): Promise<{ before: number; amount: number; after: number }> {
+export type WithdrawResult = { before: number; amount: number; after: number };
+
+/** ข้อความแจ้งเตือนหลังถอนเงิน — ใช้ทั้งแถบร้านหน้าแรกและหน้าประวัติลิ้นชัก */
+export function withdrawToast(r: WithdrawResult) {
+  return {
+    kind: "info" as const,
+    title: `ถอนเงิน ${formatBaht(Number(r.amount))} บาท`,
+    text: `คงเหลือในลิ้นชัก ${formatBaht(Number(r.after))} บาท`,
+  };
+}
+
+export async function withdrawFromDrawer(amount: number, note?: string): Promise<WithdrawResult> {
   const { data, error } = await supabase.rpc("drawer_withdraw", {
     p_amount: amount,
     p_note: note?.trim() || null,
   });
   if (error) throw toError(error);
-  return data as { before: number; amount: number; after: number };
+  return data as WithdrawResult;
 }
 
 /** ประวัติรอบเปิด-ปิดร้าน (ฐานข้อมูลให้อ่านเฉพาะแอดมิน) */
@@ -175,6 +201,72 @@ export async function listWithdrawals(limit = 100): Promise<CashWithdrawal[]> {
     .limit(limit);
   if (error) throw toError(error);
   return (data ?? []) as CashWithdrawal[];
+}
+
+/**
+ * รายการบิลที่ทำให้ปิดร้านไม่ได้ — เงื่อนไขเดียวกับ shop_close ในฐานข้อมูล
+ * (reservations / pc_sessions ที่ status = 'playing') เรียงจากเก่าสุด
+ */
+export async function listOpenBills(): Promise<OpenBill[]> {
+  const [ps5, pc] = await Promise.all([
+    supabase
+      .from("reservations")
+      .select("id, zone, machine_number, customer_name, start_time, created_at")
+      .eq("status", "playing"),
+    supabase
+      .from("pc_sessions")
+      .select("id, machine_id, customer_name, started_at, created_at")
+      .eq("status", "playing"),
+  ]);
+  if (ps5.error) throw toError(ps5.error);
+  if (pc.error) throw toError(pc.error);
+
+  type PcRow = {
+    id: string;
+    machine_id: string;
+    customer_name: string | null;
+    started_at: string | null;
+    created_at: string;
+  };
+  const pcRows = (pc.data ?? []) as PcRow[];
+  const numberOf = new Map<string, number>();
+  if (pcRows.length > 0) {
+    const { data } = await supabase
+      .from("machines")
+      .select("id, machine_number")
+      .in("id", [...new Set(pcRows.map((r) => r.machine_id))]);
+    for (const m of (data ?? []) as { id: string; machine_number: number }[]) {
+      numberOf.set(m.id, m.machine_number);
+    }
+  }
+
+  type ResRow = {
+    id: string;
+    zone: string;
+    machine_number: number | null;
+    customer_name: string | null;
+    start_time: string | null;
+    created_at: string;
+  };
+  const bills: OpenBill[] = [
+    ...((ps5.data ?? []) as ResRow[]).map((r) => ({
+      id: r.id,
+      kind: "ps5" as const,
+      zone: r.zone,
+      machine_number: r.machine_number,
+      customer_name: r.customer_name,
+      started_at: r.start_time ?? r.created_at,
+    })),
+    ...pcRows.map((r) => ({
+      id: r.id,
+      kind: "pc" as const,
+      zone: "pc",
+      machine_number: numberOf.get(r.machine_id) ?? null,
+      customer_name: r.customer_name,
+      started_at: r.started_at ?? r.created_at,
+    })),
+  ];
+  return bills.sort((a, b) => a.started_at.localeCompare(b.started_at));
 }
 
 /**

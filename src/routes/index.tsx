@@ -8,7 +8,7 @@ import { ManageModal } from "@/components/shop/ManageModal";
 import { ReportPanel } from "@/components/shop/ReportPanel";
 import { ExpensesPanel } from "@/components/shop/ExpensesPanel";
 import { ShiftsPanel } from "@/components/shop/ShiftsPanel";
-import { ShopBar } from "@/components/shop/ShopDrawer";
+import { ShopBar, ShopOverlays } from "@/components/shop/ShopDrawer";
 import { ShopProvider, useShop } from "@/hooks/useShop";
 import { PromotionPanel } from "@/components/shop/PromotionPanel";
 import { PromoImagesPanel } from "@/components/shop/PromoImagesPanel";
@@ -67,6 +67,7 @@ function IndexGuarded() {
   return (
     <ShopProvider>
       <Index />
+      <ShopOverlays />
     </ShopProvider>
   );
 }

@@ -16,6 +16,7 @@ import {
 } from "@/lib/members";
 import { freeHourValue } from "@/lib/billing";
 import { Gift } from "lucide-react";
+import { useShop } from "@/hooks/useShop";
 
 function payModeToMethod(m: "cash" | "transfer" | "mixed" | "credit"): PaymentMethod {
   return m === "transfer" ? "promptpay" : m;
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export function StartModal({ machine, onClose, onSuccess, promotion = null }: Props) {
+  const { handleStartError } = useShop();
   const [name, setName] = useState("");
   const [hours, setHours] = useState<number>(1);
   const [payMode, setPayMode] = useState<PayMode>("cash");
@@ -177,6 +179,11 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
       onSuccess();
       onClose();
     } catch (err) {
+      // ร้านปิด (เช่นอีกเครื่องเพิ่งกดปิดร้าน) -> ปิดหน้าต่างนี้แล้วขึ้นหน้าต่างเปิดร้านแทน
+      if (handleStartError(err)) {
+        onClose();
+        return;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       alert("เปิดเครื่องไม่สำเร็จ: " + msg);
     } finally {

@@ -579,6 +579,7 @@ function StartPcModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const { handleStartError } = useShop();
   const [minutes, setMinutes] = useState<number>(60);
   const [custom, setCustom] = useState<string>("");
   const [name, setName] = useState("");
@@ -654,6 +655,11 @@ function StartPcModal({
               JSON.stringify(e)
             : String(e);
       console.error("startPcSession failed:", e);
+      // ร้านปิด -> ขึ้นหน้าต่างเปิดร้านแทน alert
+      if (handleStartError(e)) {
+        onClose();
+        return;
+      }
       alert("เริ่ม session ไม่สำเร็จ: " + msg);
     } finally {
       setBusy(false);
