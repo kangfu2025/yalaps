@@ -9,6 +9,7 @@ import {
   type RankPeriod,
 } from "@/lib/ranking";
 import { RankList, RankPodium, type BoardEntry } from "@/components/shop/RankingBoard";
+import { DisplayScreen } from "@/components/shop/DisplayScreen";
 
 /**
  * จออันดับลูกค้า — เปิดบนจอแนวตั้งในร้านแบบเต็มจอ ไม่ต้องล็อกอิน
@@ -25,8 +26,17 @@ export const Route = createFileRoute("/ranking")({
   head: () => ({
     meta: [{ title: "อันดับลูกค้า — YALA PLAYSTATION" }],
   }),
-  component: RankingScreen,
+  component: RankingPage,
 });
+
+/**
+ * จอนี้คือจอลูกค้าตัวเดียวกับ /display — แค่ตอนว่างแสดงอันดับแทนรูปโปรโมชั่น
+ * พนักงานส่ง QR ชำระเงิน / สแกนสลิป / QR สมัครสมาชิก มาเมื่อไหร่ ก็ขึ้นทับทันที
+ * จ่ายเสร็จแล้วกลับมาที่อันดับเอง
+ */
+function RankingPage() {
+  return <DisplayScreen idle={<RankingScreen />} />;
+}
 
 const REFRESH_MS = 30_000;
 const SWITCH_MS = 20_000;
