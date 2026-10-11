@@ -13,6 +13,11 @@ export interface Member {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  /** อันดับลูกค้า (ranking_migration.sql) — ไม่มีถ้ายังไม่ได้รัน migration */
+  display_name?: string | null;
+  show_on_ranking?: boolean;
+  avatar_url?: string | null;
+  avatar_path?: string | null;
 }
 
 export interface PointTransaction {

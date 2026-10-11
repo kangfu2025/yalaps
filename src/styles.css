@@ -4196,3 +4196,818 @@ label.small {
     animation: none;
   }
 }
+
+/* ============================================================
+   อันดับลูกค้า (Customer Ranking) — ใช้ทั้งแท็บแอดมินและจอ /ranking
+   ============================================================ */
+.yl-rk-stage {
+  --rk-gold-1: #fff3b0;
+  --rk-gold-2: #fbbf24;
+  --rk-gold-3: #b45309;
+  --rk-silver-1: #ffffff;
+  --rk-silver-2: #cbd5e1;
+  --rk-silver-3: #64748b;
+  --rk-bronze-1: #fed7aa;
+  --rk-bronze-2: #f97316;
+  --rk-bronze-3: #9a3412;
+  --rk-neon: #a855f7;
+  --rk-cyan: #22d3ee;
+  color: #fff;
+}
+
+/* ---------- Avatar ---------- */
+.yl-rk-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #1e1b3a;
+  container-type: inline-size;
+  flex: none;
+}
+.yl-rk-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.yl-rk-avatar.is-default::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.35), transparent 45%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0 6px, transparent 6px 12px);
+  pointer-events: none;
+}
+.yl-rk-initial {
+  font-family: "Prompt", system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 46cqw;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.yl-rk-pad {
+  width: 52%;
+  height: 52%;
+  color: #fff;
+  opacity: 0.9;
+}
+.yl-rk-avatar.is-xs {
+  width: 30px;
+  height: 30px;
+}
+.yl-rk-avatar.is-lg {
+  width: 88px;
+  height: 88px;
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.5);
+}
+
+/* ---------- แท่นรางวัล ---------- */
+.yl-rk-podium {
+  display: grid;
+  grid-template-columns: 1fr 1.18fr 1fr;
+  align-items: end;
+  gap: 0.6em;
+  margin: 0 auto;
+  max-width: 46em;
+}
+.yl-rk-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  animation: rkRise 0.7s cubic-bezier(0.2, 0.9, 0.25, 1.15) both;
+}
+button.yl-rk-step {
+  cursor: pointer;
+}
+button.yl-rk-step:focus-visible {
+  outline: 2px solid var(--rk-cyan);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+.yl-rk-step.is-empty {
+  visibility: hidden;
+}
+.yl-rk-step.is-gold {
+  --t1: var(--rk-gold-1);
+  --t2: var(--rk-gold-2);
+  --t3: var(--rk-gold-3);
+  --av: 7.4em;
+  --blk: 6.2em;
+}
+.yl-rk-step.is-silver {
+  --t1: var(--rk-silver-1);
+  --t2: var(--rk-silver-2);
+  --t3: var(--rk-silver-3);
+  --av: 5.6em;
+  --blk: 4.4em;
+}
+.yl-rk-step.is-bronze {
+  --t1: var(--rk-bronze-1);
+  --t2: var(--rk-bronze-2);
+  --t3: var(--rk-bronze-3);
+  --av: 5.6em;
+  --blk: 3.3em;
+}
+.yl-rk-hero {
+  position: relative;
+  width: var(--av);
+  margin-bottom: 0.55em;
+}
+.yl-rk-ring {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0.22em;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--t1), var(--t2), var(--t3), var(--t2), var(--t1));
+  box-shadow:
+    0 0 1.2em color-mix(in srgb, var(--t2) 55%, transparent),
+    0 0.6em 1.6em rgba(0, 0, 0, 0.55);
+  animation: rkPop 0.6s 0.25s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+.yl-rk-ring::before {
+  content: "";
+  position: absolute;
+  inset: -0.3em;
+  z-index: -1;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 60%, var(--t2) 75%, transparent 90%);
+  filter: blur(0.35em);
+  animation: rkSpin 3.2s linear infinite;
+}
+.yl-rk-step.is-gold .yl-rk-ring::before {
+  inset: -0.45em;
+  background: conic-gradient(from 0deg, transparent 0 45%, var(--t2) 65%, #fff7cc 72%, transparent 88%);
+  animation-duration: 2.4s;
+}
+.yl-rk-crown {
+  position: absolute;
+  top: -0.95em;
+  left: 50%;
+  z-index: 2;
+  width: 2.1em;
+  height: 2.1em;
+  color: var(--rk-gold-2);
+  fill: rgba(251, 191, 36, 0.35);
+  filter: drop-shadow(0 0 0.45em rgba(251, 191, 36, 0.9));
+  transform: translateX(-50%) rotate(-8deg);
+  animation: rkFloat 2.6s ease-in-out infinite;
+}
+.yl-rk-medal {
+  position: absolute;
+  right: 2%;
+  bottom: 2%;
+  display: grid;
+  place-items: center;
+  width: 1.9em;
+  height: 1.9em;
+  border-radius: 50%;
+  font-family: "Orbitron", "Prompt", sans-serif;
+  font-weight: 900;
+  font-size: 0.85em;
+  color: #1a1206;
+  background: radial-gradient(circle at 35% 30%, var(--t1), var(--t2) 55%, var(--t3));
+  box-shadow:
+    0 0 0 0.16em #0b0920,
+    0 0.2em 0.6em rgba(0, 0, 0, 0.5);
+}
+.yl-rk-step.is-gold .yl-rk-medal {
+  font-size: 1.05em;
+}
+.yl-rk-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15em;
+  max-width: 100%;
+  font-weight: 800;
+  font-size: 1.05em;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.yl-rk-step.is-gold .yl-rk-name {
+  font-size: 1.25em;
+  color: var(--rk-gold-1);
+  text-shadow: 0 0 0.6em rgba(251, 191, 36, 0.55);
+}
+.yl-rk-sub {
+  font-size: 0.72em;
+  color: #a7a3c9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.yl-rk-pts {
+  margin: 0.15em 0 0.5em;
+  font-family: "Orbitron", "Prompt", sans-serif;
+  font-weight: 900;
+  font-size: 1.15em;
+  color: var(--t2);
+  font-variant-numeric: tabular-nums;
+}
+.yl-rk-step.is-gold .yl-rk-pts {
+  font-size: 1.45em;
+}
+.yl-rk-pts small,
+.yl-rk-score small {
+  margin-left: 0.3em;
+  font-size: 0.55em;
+  letter-spacing: 0.1em;
+  opacity: 0.75;
+}
+.yl-rk-block {
+  position: relative;
+  width: 100%;
+  height: var(--blk);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 0.7em 0.7em 0.25em 0.25em;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--t2) 70%, transparent), transparent 120%),
+    linear-gradient(180deg, #1c1640, #0c0a22);
+  border: 1px solid color-mix(in srgb, var(--t1) 55%, transparent);
+  border-bottom: 0;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--t1) 70%, transparent),
+    0 -0.4em 1.4em -0.6em var(--t2);
+}
+.yl-rk-block span {
+  font-family: "Orbitron", "Prompt", sans-serif;
+  font-weight: 900;
+  font-size: 1.35em;
+  letter-spacing: 0.08em;
+  color: #fff;
+  text-shadow: 0 0.1em 0.4em rgba(0, 0, 0, 0.6);
+}
+.yl-rk-step.is-gold .yl-rk-block span {
+  font-size: 1.8em;
+}
+.yl-rk-block::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.35) 48%, transparent 66%);
+  transform: translateX(-120%);
+  animation: rkShine 4.5s 1.2s ease-in-out infinite;
+}
+
+/* ---------- รายการอันดับ 4+ ---------- */
+.yl-rk-list {
+  list-style: none;
+  margin: 1.1em auto 0;
+  padding: 0;
+  max-width: 46em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+}
+.yl-rk-list li {
+  animation: rkSlide 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.yl-rk-list li > div,
+.yl-rk-list li > button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 2.2em 2.7em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75em;
+  padding: 0.55em 0.9em 0.55em 0.7em;
+  border: 1px solid rgba(168, 85, 247, 0.22);
+  border-left: 3px solid var(--rk-neon);
+  border-radius: 0.8em;
+  background: linear-gradient(90deg, rgba(40, 26, 84, 0.85), rgba(14, 11, 34, 0.85));
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.yl-rk-list li > button {
+  cursor: pointer;
+}
+.yl-rk-list li > button:hover,
+.yl-rk-list li > button:focus-visible {
+  border-color: rgba(34, 211, 238, 0.6);
+  outline: none;
+}
+.yl-rk-no {
+  font-family: "Orbitron", "Prompt", sans-serif;
+  font-weight: 900;
+  font-size: 1.15em;
+  text-align: center;
+  color: #c4b5fd;
+}
+.yl-rk-list .yl-rk-avatar {
+  width: 2.7em;
+  height: 2.7em;
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.55);
+}
+.yl-rk-who {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+}
+.yl-rk-who b {
+  display: flex;
+  align-items: center;
+  gap: 0.2em;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.yl-rk-who em {
+  font-style: normal;
+  font-size: 0.75em;
+  color: #a7a3c9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.yl-rk-bar {
+  display: block;
+  height: 0.28em;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.yl-rk-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--rk-neon), var(--rk-cyan));
+  transform-origin: left;
+  animation: rkGrow 0.9s 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.yl-rk-score {
+  font-family: "Orbitron", "Prompt", sans-serif;
+  font-weight: 900;
+  font-size: 1.05em;
+  color: var(--rk-cyan);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.yl-rk-up {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  color: #4ade80;
+  animation: rkBob 1.2s ease-in-out infinite;
+}
+.yl-rk-step.is-hidden .yl-rk-ring,
+.yl-rk-list li.is-hidden > * {
+  opacity: 0.5;
+}
+.yl-rk-txt {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.yl-rk-step .yl-rk-hidden-tag {
+  margin: 0 0 0.3em;
+}
+.yl-rk-hidden-tag {
+  flex: none;
+  margin-left: 0.4em;
+  white-space: nowrap;
+  padding: 0.05em 0.5em;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #fecdd3;
+  background: rgba(244, 63, 94, 0.2);
+  border: 1px solid rgba(244, 63, 94, 0.45);
+}
+
+/* ---------- แท็บแอดมิน ---------- */
+.yl-rk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.yl-rk-seg {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(15, 10, 30, 0.8);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+.yl-rk-seg button {
+  border: 0;
+  padding: 7px 16px;
+  border-radius: 9px;
+  font-weight: 700;
+  color: #b7b3d6;
+  background: transparent;
+}
+.yl-rk-seg button.active {
+  color: #fff;
+  background: linear-gradient(135deg, #a855f7, #ec4899);
+  box-shadow: 0 6px 18px -8px rgba(236, 72, 153, 0.9);
+}
+.yl-rk-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-bottom: 14px;
+  font-size: 0.85rem;
+  color: #c9c5e6;
+}
+.yl-rk-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.yl-rk-stage.is-panel {
+  font-size: 15px;
+  padding: 34px 16px 20px;
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(168, 85, 247, 0.28), transparent 60%),
+    linear-gradient(180deg, #120d2c, #08061a);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+.yl-rk-legend {
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: #9d99bd;
+}
+.yl-rk-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 48px 16px;
+  text-align: center;
+  color: #9d99bd;
+  border-radius: 20px;
+  border: 1px dashed rgba(168, 85, 247, 0.35);
+}
+.yl-rk-empty svg {
+  color: #fbbf24;
+  opacity: 0.8;
+}
+.yl-rk-empty b {
+  color: #fff;
+  font-size: 1.1rem;
+}
+.yl-rk-editor-photo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.yl-rk-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(34, 211, 238, 0.08);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+.yl-rk-consent .form-check-input {
+  flex: none;
+  margin-top: 2px;
+}
+.yl-rk-consent svg {
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+.yl-rk-editor .form-text {
+  color: #9d99bd;
+}
+
+/* ---------- จอลูกค้า /ranking ---------- */
+.yl-rk-screen {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(16px, 4vw, 56px) clamp(16px, 4vw, 48px);
+  background: #05040f;
+  color: #fff;
+  font-family: "Prompt", system-ui, sans-serif;
+  font-size: clamp(13px, min(2.75vw, 1.5vh), 34px);
+  cursor: default;
+  user-select: none;
+}
+.yl-rk-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.yl-rk-grid {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  bottom: -10%;
+  height: 55%;
+  background-image:
+    linear-gradient(rgba(168, 85, 247, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(168, 85, 247, 0.35) 1px, transparent 1px);
+  background-size: 3.2em 3.2em;
+  transform: perspective(40em) rotateX(62deg);
+  transform-origin: bottom;
+  mask-image: linear-gradient(to top, #000 10%, transparent 85%);
+  animation: rkGrid 6s linear infinite;
+}
+.yl-rk-orb {
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.45;
+}
+.yl-rk-orb.a {
+  top: -25vmax;
+  left: -20vmax;
+  background: #7c3aed;
+  animation: rkDrift 14s ease-in-out infinite alternate;
+}
+.yl-rk-orb.b {
+  top: 10vmax;
+  right: -30vmax;
+  background: #0891b2;
+  animation: rkDrift 18s ease-in-out infinite alternate-reverse;
+}
+.yl-rk-head,
+.yl-rk-screen .yl-rk-stage,
+.yl-rk-foot {
+  position: relative;
+  z-index: 1;
+}
+.yl-rk-head {
+  text-align: center;
+  margin-bottom: 1.6em;
+}
+.yl-rk-brand {
+  font-family: "Orbitron", "Prompt", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.45em;
+  font-size: 0.8em;
+  color: #c4b5fd;
+}
+.yl-rk-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  margin: 0.15em 0 0.25em;
+  font-family: "Orbitron", "Prompt", sans-serif;
+  font-weight: 900;
+  font-size: 2.6em;
+  letter-spacing: 0.06em;
+  line-height: 1.05;
+  background: linear-gradient(90deg, #fde68a, #fbbf24 30%, #f472b6 65%, #22d3ee);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 0.35em rgba(168, 85, 247, 0.55));
+  animation: rkHue 6s linear infinite;
+}
+.yl-rk-title-ico {
+  width: 0.9em;
+  height: 0.9em;
+  color: #fbbf24;
+  flex: none;
+}
+.yl-rk-period {
+  display: inline-block;
+  padding: 0.3em 1.1em;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 1.05em;
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.55);
+  box-shadow: 0 0 1.2em -0.3em rgba(168, 85, 247, 0.8);
+  animation: rkFade 0.6s ease both;
+}
+.yl-rk-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.4em;
+  margin-top: 0.6em;
+}
+.yl-rk-dots i {
+  width: 0.45em;
+  height: 0.45em;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  transition: all 0.3s;
+}
+.yl-rk-dots i.on {
+  width: 1.4em;
+  border-radius: 999px;
+  background: #22d3ee;
+}
+.yl-rk-screen .yl-rk-stage {
+  flex: 1;
+  width: 100%;
+  max-width: 40em;
+  margin: 0 auto;
+  padding-top: 1.2em;
+}
+.yl-rk-screen .yl-rk-list li > div {
+  padding-block: 0.5em;
+}
+.yl-rk-empty.is-screen {
+  margin-top: 3em;
+  padding: 3em 1em;
+  font-size: 1.1em;
+  color: #c9c5e6;
+}
+.yl-rk-empty.is-screen b {
+  font-size: 1.4em;
+}
+.yl-rk-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6em 1.2em;
+  margin-top: 1.4em;
+  font-size: 0.85em;
+  color: #c9c5e6;
+  text-align: center;
+}
+.yl-rk-foot span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+.yl-rk-foot svg {
+  color: #fbbf24;
+}
+.yl-rk-offline {
+  color: #fca5a5;
+}
+
+/* ---------- Animation ---------- */
+@keyframes rkRise {
+  from {
+    transform: translateY(2.5em);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes rkPop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes rkSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes rkFloat {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0) rotate(-8deg);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-0.25em) rotate(-3deg);
+  }
+}
+@keyframes rkShine {
+  0%,
+  60% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+@keyframes rkSlide {
+  from {
+    transform: translateX(-1.5em);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes rkGrow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes rkBob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.18em);
+  }
+}
+@keyframes rkGrid {
+  to {
+    background-position: 0 3.2em;
+  }
+}
+@keyframes rkDrift {
+  to {
+    transform: translate(6vmax, 8vmax) scale(1.1);
+  }
+}
+@keyframes rkHue {
+  to {
+    background-position: 200% 0;
+  }
+}
+@keyframes rkFade {
+  from {
+    opacity: 0;
+    transform: translateY(0.4em);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .yl-rk-stage.is-panel {
+    font-size: 12.5px;
+    padding-inline: 10px;
+  }
+  .yl-rk-podium {
+    gap: 0.35em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yl-rk-step,
+  .yl-rk-ring,
+  .yl-rk-ring::before,
+  .yl-rk-crown,
+  .yl-rk-block::after,
+  .yl-rk-list li,
+  .yl-rk-bar i,
+  .yl-rk-up,
+  .yl-rk-grid,
+  .yl-rk-orb,
+  .yl-rk-title,
+  .yl-rk-period {
+    animation: none !important;
+  }
+}
+
+/* จอแนวตั้งในร้านเลื่อนหน้าจอไม่ได้ — อันดับ 4–20 แบ่ง 2 คอลัมน์ให้ครบในหน้าเดียว */
+@media (min-width: 700px) {
+  .yl-rk-screen .yl-rk-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(9, auto);
+    grid-auto-flow: column;
+    gap: 0.45em 0.6em;
+    font-size: 0.82em;
+    max-width: none;
+  }
+  .yl-rk-screen .yl-rk-list li > div {
+    grid-template-columns: 1.9em 2.5em minmax(0, 1fr) auto;
+    gap: 0.6em;
+  }
+}

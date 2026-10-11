@@ -30,6 +30,9 @@ import {
   type PointTransaction,
 } from "@/lib/members";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
+import { RankingProfileEditor } from "./RankingPanel";
+import { RankAvatar } from "./RankingBoard";
 import {
   showJoinScreen,
   clearDisplay,
@@ -211,7 +214,16 @@ export function MembersPanel() {
             )}
             {rows.map((m) => (
               <tr key={m.id}>
-                <td className="fw-bold">{m.name}</td>
+                <td className="fw-bold">
+                  <span className="d-inline-flex align-items-center gap-2">
+                    <RankAvatar
+                      url={m.avatar_url ?? null}
+                      name={m.display_name || m.name}
+                      className="is-xs"
+                    />
+                    {m.name}
+                  </span>
+                </td>
                 <td className="font-monospace">{formatPhone(m.phone)}</td>
                 <td className="text-center">
                   <span className="badge bg-warning text-dark" style={{ fontSize: ".95rem" }}>
@@ -263,6 +275,7 @@ function MemberDetail({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [points, setPoints] = useState(member.points);
+  const { role } = useAuth();
 
   useEffect(() => {
     listMemberTransactions(member.id)
@@ -381,6 +394,15 @@ function MemberDetail({
                 >
                   บันทึกข้อมูล
                 </button>
+
+                <hr />
+
+                <label className="small fw-bold">จออันดับลูกค้า</label>
+                <RankingProfileEditor
+                  memberId={member.id}
+                  isAdmin={role === "admin"}
+                  onSaved={onChanged}
+                />
 
                 <hr />
 

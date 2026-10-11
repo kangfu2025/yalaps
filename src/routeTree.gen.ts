@@ -15,6 +15,7 @@ import { Route as CustomerScreenRouteImport } from './routes/customer-screen'
 import { Route as DisplayRouteImport } from './routes/display'
 import { Route as JoinRouteImport } from './routes/join'
 import { Route as McpRouteImport } from './routes/mcp'
+import { Route as RankingRouteImport } from './routes/ranking'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as ApiAdminUsersRouteImport } from './routes/api/admin-users'
@@ -52,6 +53,11 @@ const JoinRoute = JoinRouteImport.update({
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RankingRoute = RankingRouteImport.update({
+  id: '/ranking',
+  path: '/ranking',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Char91DotmcpChar93ListToolsRoute =
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/display': typeof DisplayRoute
   '/join': typeof JoinRoute
   '/mcp': typeof McpRoute
+  '/ranking': typeof RankingRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/api/admin-users': typeof ApiAdminUsersRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByTo {
   '/display': typeof DisplayRoute
   '/join': typeof JoinRoute
   '/mcp': typeof McpRoute
+  '/ranking': typeof RankingRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/api/admin-users': typeof ApiAdminUsersRoute
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   '/display': typeof DisplayRoute
   '/join': typeof JoinRoute
   '/mcp': typeof McpRoute
+  '/ranking': typeof RankingRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/api/admin-users': typeof ApiAdminUsersRoute
@@ -156,6 +165,7 @@ export interface FileRouteTypes {
     | '/display'
     | '/join'
     | '/mcp'
+    | '/ranking'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/api/admin-users'
@@ -172,6 +182,7 @@ export interface FileRouteTypes {
     | '/display'
     | '/join'
     | '/mcp'
+    | '/ranking'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/api/admin-users'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '/display'
     | '/join'
     | '/mcp'
+    | '/ranking'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/api/admin-users'
@@ -205,6 +217,7 @@ export interface RootRouteChildren {
   DisplayRoute: typeof DisplayRoute
   JoinRoute: typeof JoinRoute
   McpRoute: typeof McpRoute
+  RankingRoute: typeof RankingRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiAdminUsersRoute: typeof ApiAdminUsersRoute
@@ -257,6 +270,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp'
       fullPath: '/mcp'
       preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ranking': {
+      id: '/ranking'
+      path: '/ranking'
+      fullPath: '/ranking'
+      preLoaderRoute: typeof RankingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.mcp/list-tools': {
@@ -325,6 +345,7 @@ const rootRouteChildren: RootRouteChildren = {
   DisplayRoute: DisplayRoute,
   JoinRoute: JoinRoute,
   McpRoute: McpRoute,
+  RankingRoute: RankingRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,

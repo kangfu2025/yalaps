@@ -19,6 +19,7 @@ import {
   MessageCircle,
   Wallet,
   Store,
+  Trophy,
 } from "lucide-react";
 
 export type Tab =
@@ -33,6 +34,7 @@ export type Tab =
   | "screen"
   | "users"
   | "members"
+  | "ranking"
   | "line";
 
 type Item = { key: Tab; label: string; icon: LucideIcon; adminOnly?: boolean };
@@ -46,6 +48,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { key: "pos", label: "ขายสินค้า", icon: ShoppingCart },
       { key: "stock", label: "คลังสินค้า", icon: Package },
       { key: "members", label: "สมาชิก", icon: IdCard },
+      { key: "ranking", label: "อันดับลูกค้า", icon: Trophy },
       { key: "report", label: "บัญชีและสรุปยอด", icon: BarChart3 },
       { key: "expense", label: "รายจ่าย", icon: Wallet, adminOnly: true },
       { key: "drawer", label: "เปิด-ปิดร้าน / ลิ้นชัก", icon: Store, adminOnly: true },
@@ -159,6 +162,10 @@ export function AdminSidebar({
           <Link to="/display" target="_blank" className="yl-sb-item" title="จอลูกค้า">
             <Monitor size={17} className="yl-sb-ico" />
             <span className="yl-sb-label">จอลูกค้า</span>
+          </Link>
+          <Link to="/ranking" target="_blank" className="yl-sb-item" title="จออันดับลูกค้า">
+            <Trophy size={17} className="yl-sb-ico" />
+            <span className="yl-sb-label">จออันดับ</span>
           </Link>
           <button className="yl-sb-item" onClick={onRefresh} title="รีเฟรช">
             <RefreshCw size={17} className="yl-sb-ico" />

@@ -15,6 +15,7 @@ import { PromoImagesPanel } from "@/components/shop/PromoImagesPanel";
 import { PcZonePanel } from "@/components/shop/PcZonePanel";
 import { UsersPanel } from "@/components/shop/UsersPanel";
 import { MembersPanel } from "@/components/shop/MembersPanel";
+import { RankingPanel } from "@/components/shop/RankingPanel";
 import { LineSettingsPanel } from "@/components/shop/LineSettingsPanel";
 import { ProductsPanel } from "@/components/shop/ProductsPanel";
 import { ProductSalePanel } from "@/components/shop/ProductSalePanel";
@@ -37,7 +38,7 @@ export const Route = createFileRoute("/")({
   component: IndexGuarded,
 });
 
-const STAFF_TABS: Tab[] = ["dash", "pc", "pos", "stock", "report", "screen", "members"];
+const STAFF_TABS: Tab[] = ["dash", "pc", "pos", "stock", "report", "screen", "members", "ranking"];
 
 const TAB_TITLE: Record<Tab, string> = {
   dash: "แดชบอร์ด PS5",
@@ -48,6 +49,7 @@ const TAB_TITLE: Record<Tab, string> = {
   expense: "รายจ่าย",
   drawer: "เปิด-ปิดร้าน / เงินในลิ้นชัก",
   members: "สมาชิกและแต้มสะสม",
+  ranking: "อันดับลูกค้าประจำ",
   line: "แจ้งเตือน LINE",
   promo: "โปรโมชั่น",
   screen: "รูปหน้าจอ",
@@ -222,6 +224,8 @@ function Index() {
               <ProductsPanel />
             ) : effTab === "members" ? (
               <MembersPanel />
+            ) : effTab === "ranking" ? (
+              <RankingPanel />
             ) : effTab === "report" ? (
               <ReportPanel hideTotals={!isAdmin} isAdmin={isAdmin} />
             ) : effTab === "screen" ? (
