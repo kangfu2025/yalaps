@@ -13,8 +13,8 @@ import { RankList, RankPodium, type BoardEntry } from "@/components/shop/Ranking
 /**
  * จออันดับลูกค้า — เปิดบนจอแนวตั้งในร้านแบบเต็มจอ ไม่ต้องล็อกอิน
  *
- * อ่านผ่าน ranking_public() เท่านั้น ซึ่งคืนแค่ชื่อที่สมาชิกยินยอม รูป แต้ม อันดับ
- * (ไม่มีชื่อจริง เบอร์โทร หรือรหัสสมาชิก)
+ * อ่านผ่าน ranking_public() เท่านั้น ซึ่งคืนแค่ ชื่อ (ชื่อเล่นหรือชื่อสมาชิก) รูป แต้ม อันดับ
+ * ไม่มีเบอร์โทรหรือรหัสสมาชิก · ลูกค้าที่ขอซ่อนจะไม่ขึ้นจอ
  *
  * ?period=month   อันดับประจำเดือนอย่างเดียว
  * ?period=all     อันดับตลอดกาลอย่างเดียว
@@ -24,14 +24,6 @@ export const Route = createFileRoute("/ranking")({
   ssr: false,
   head: () => ({
     meta: [{ title: "อันดับลูกค้า — YALA PLAYSTATION" }],
-    links: [
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap",
-      },
-    ],
   }),
   component: RankingScreen,
 });
@@ -134,7 +126,7 @@ function RankingScreen() {
   }));
   const topPoints = entries[0]?.points ?? 0;
   const title =
-    period === "month" ? `ประจำเดือน${rankMonthLabel(current?.month)}` : "ตลอดกาล · ALL TIME";
+    period === "month" ? `ประจำเดือน${rankMonthLabel(current?.month)}` : "แต้มสะสมตลอดกาล";
 
   return (
     <div className="yl-rk-screen" onClick={toggleFullscreen}>
@@ -148,7 +140,7 @@ function RankingScreen() {
         <div className="yl-rk-brand">YALA PLAYSTATION</div>
         <h1 className="yl-rk-title">
           <Trophy className="yl-rk-title-ico" aria-hidden />
-          LEADERBOARD
+          อันดับลูกค้าประจำ
         </h1>
         <div className="yl-rk-period" key={period}>
           {title}
@@ -165,8 +157,8 @@ function RankingScreen() {
         {entries.length === 0 ? (
           <div className="yl-rk-empty is-screen">
             <Trophy size={64} />
-            <b>{current ? "รอแชมป์คนแรกอยู่!" : (error ?? "กำลังโหลดอันดับ...")}</b>
-            <span>เล่นสะสมแต้ม แล้วบอกพนักงานว่ายินยอมขึ้นจออันดับ</span>
+            <b>{current ? "ยังไม่มีอันดับในช่วงนี้" : (error ?? "กำลังโหลดอันดับ...")}</b>
+            <span>สมัครสมาชิก แล้วเล่นสะสมแต้ม เพื่อขึ้นจออันดับ</span>
           </div>
         ) : (
           <>

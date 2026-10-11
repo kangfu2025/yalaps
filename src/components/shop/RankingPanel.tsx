@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import {
   getRanking,
   getRankingProfile,
-  saveRankingConsent,
+  saveRankingProfile,
   uploadMemberAvatar,
   removeMemberAvatar,
   currentRankMonth,
@@ -33,11 +33,12 @@ function errText(e: unknown): string {
 
 export function RankingPanel() {
   const { role } = useAuth();
-  const isAdmin = role === "admin";
+  // พนักงานและแอดมินจัดการหน้าอันดับได้ทั้งหมด (บัญชีที่ยังไม่ได้กำหนดสิทธิ์ดูได้อย่างเดียว)
+  const canManage = role === "admin" || role === "staff";
   const [period, setPeriod] = useState<RankPeriod>("month");
   const [month, setMonth] = useState(currentRankMonth());
   const [data, setData] = useState<RankResult | null>(null);
-  const [consented, setConsented] = useState<number | null>(null);
+  const [hiddenCount, setHiddenCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [notReady, setNotReady] = useState(false);
@@ -52,12 +53,12 @@ export function RankingPanel() {
         supabase
           .from("members")
           .select("id", { count: "exact", head: true })
-          .eq("show_on_ranking", true)
+          .eq("hide_from_ranking", true)
           .eq("active", true),
       ]);
       if (id !== reqId.current) return; // ผลของคำขอเก่าที่ตอบช้า ทิ้งไป
       setData(r);
-      setConsented(c.count ?? null);
+      setHiddenCount(c.count ?? null);
       setErr(null);
       setNotReady(false);
     } catch (e) {
@@ -103,7 +104,7 @@ export function RankingPanel() {
     sub: r.display_name ? r.name : undefined,
     avatarUrl: r.avatar_url,
     points: r.points,
-    hidden: !r.show_on_ranking,
+    hidden: r.hide_from_ranking,
   }));
   const topPoints = entries[0]?.points ?? 0;
 
@@ -158,8 +159,8 @@ export function RankingPanel() {
             : "แต้มสะสมทั้งหมดตั้งแต่เป็นสมาชิก"}
         </span>
         {data && <span>มีแต้มในช่วงนี้ {data.total} คน</span>}
-        {consented !== null && <span>ยินยอมแสดงบนจอลูกค้า {consented} คน</span>}
-        <span className="text-muted">กดที่ชื่อเพื่อตั้งชื่อที่แสดง / รูป / ความยินยอม</span>
+        {hiddenCount !== null && hiddenCount > 0 && <span>ซ่อนจากจอ {hiddenCount} คน</span>}
+        {canManage && <span className="text-muted">กดที่ชื่อเพื่อตั้งชื่อเล่น / เปลี่ยนรูป</span>}
       </div>
 
       {err && <div className="alert alert-danger py-2 small">{err}</div>}
@@ -178,21 +179,25 @@ export function RankingPanel() {
         </div>
       ) : (
         <div className="yl-rk-stage is-panel">
-          <RankPodium entries={entries} onPick={setEditing} />
-          <RankList entries={entries.slice(3)} topPoints={topPoints} onPick={setEditing} />
+          <RankPodium entries={entries} onPick={canManage ? setEditing : undefined} />
+          <RankList
+            entries={entries.slice(3)}
+            topPoints={topPoints}
+            onPick={canManage ? setEditing : undefined}
+          />
         </div>
       )}
 
       <div className="yl-rk-legend">
-        <span className="yl-rk-hidden-tag">ไม่แสดงบนจอ</span> = ลูกค้ายังไม่ยินยอม
-        จออันดับในร้านจะข้ามคนนี้และเลื่อนอันดับคนถัดไปขึ้นมาแทน
+        จออันดับในร้านแสดงชื่อเล่น (ถ้าตั้งไว้) หรือชื่อสมาชิก ·{" "}
+        <span className="yl-rk-hidden-tag">ซ่อนจากจอ</span> = ลูกค้าขอไม่แสดง
+        จอจะข้ามคนนี้และเลื่อนคนถัดไปขึ้นมาแทน
       </div>
 
       {editing && (
         <RankingProfileModal
           memberId={editing.key}
           realName={editing.sub ?? editing.name}
-          isAdmin={isAdmin}
           onClose={() => setEditing(null)}
           onSaved={() => void load()}
         />
@@ -208,13 +213,11 @@ export function RankingPanel() {
 function RankingProfileModal({
   memberId,
   realName,
-  isAdmin,
   onClose,
   onSaved,
 }: {
   memberId: string;
   realName: string;
-  isAdmin: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -229,7 +232,12 @@ function RankingProfileModal({
         </div>
         <div className="p-3">
           <div className="small text-muted mb-2">สมาชิก: {realName}</div>
-          <RankingProfileEditor memberId={memberId} isAdmin={isAdmin} onSaved={onSaved} />
+          <RankingProfileEditor
+            memberId={memberId}
+            memberName={realName}
+            canManage
+            onSaved={onSaved}
+          />
         </div>
       </div>
     </div>
@@ -238,16 +246,20 @@ function RankingProfileModal({
 
 export function RankingProfileEditor({
   memberId,
-  isAdmin,
+  memberName,
+  canManage,
   onSaved,
 }: {
   memberId: string;
-  isAdmin: boolean;
+  /** ชื่อสมาชิก — ใช้เลือกรูปการ์ตูนให้ตรงกับที่ขึ้นบนจอ */
+  memberName: string;
+  /** พนักงาน/แอดมิน — บัญชีที่ยังไม่ได้กำหนดสิทธิ์ดูได้อย่างเดียว */
+  canManage: boolean;
   onSaved?: () => void;
 }) {
   const [profile, setProfile] = useState<RankingProfile | null>(null);
   const [nick, setNick] = useState("");
-  const [show, setShow] = useState(false);
+  const [hide, setHide] = useState(false);
   const [busy, setBusy] = useState<null | "save" | "photo">(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [notReady, setNotReady] = useState(false);
@@ -261,7 +273,7 @@ export function RankingProfileEditor({
         if (!alive) return;
         setProfile(p);
         setNick(p.display_name ?? "");
-        setShow(!!p.show_on_ranking);
+        setHide(!!p.hide_from_ranking);
       })
       .catch((e) => {
         if (!alive) return;
@@ -282,21 +294,18 @@ export function RankingProfileEditor({
   }
   if (!profile) return <div className="small text-muted">กำลังโหลด...</div>;
 
-  const dirty = (profile.display_name ?? "") !== nick.trim() || !!profile.show_on_ranking !== show;
-  const needName = show && !nick.trim();
+  const dirty =
+    (profile.display_name ?? "") !== nick.trim() || !!profile.hide_from_ranking !== hide;
 
   async function save() {
     if (!profile || busy) return;
     setBusy("save");
     setMsg(null);
     try {
-      await saveRankingConsent(profile.id, nick, show);
-      setProfile({ ...profile, display_name: nick.trim() || null, show_on_ranking: show });
+      await saveRankingProfile(profile.id, nick, hide);
+      setProfile({ ...profile, display_name: nick.trim() || null, hide_from_ranking: hide });
       setNick(nick.trim());
-      setMsg({
-        ok: true,
-        text: show ? "บันทึกแล้ว — ขึ้นจออันดับในร้าน" : "บันทึกแล้ว — ไม่แสดงบนจอ",
-      });
+      setMsg({ ok: true, text: hide ? "บันทึกแล้ว — ซ่อนจากจออันดับ" : "บันทึกแล้ว" });
       onSaved?.();
     } catch (e) {
       setMsg({ ok: false, text: errText(e) });
@@ -328,7 +337,7 @@ export function RankingProfileEditor({
     setMsg(null);
     try {
       setProfile(await removeMemberAvatar(profile));
-      setMsg({ ok: true, text: "ลบรูปแล้ว — ใช้รูปเริ่มต้นแทน" });
+      setMsg({ ok: true, text: "ลบรูปแล้ว — ใช้รูปการ์ตูนแทน" });
       onSaved?.();
     } catch (e) {
       setMsg({ ok: false, text: errText(e) });
@@ -340,9 +349,13 @@ export function RankingProfileEditor({
   return (
     <div className="yl-rk-editor">
       <div className="yl-rk-editor-photo">
-        <RankAvatar url={profile.avatar_url ?? null} name={nick || "?"} className="is-lg" />
+        <RankAvatar
+          url={profile.avatar_url ?? null}
+          name={nick.trim() || memberName}
+          className="is-lg"
+        />
         <div className="d-flex flex-column gap-2">
-          {isAdmin ? (
+          {canManage ? (
             <>
               <input
                 ref={fileRef}
@@ -374,55 +387,60 @@ export function RankingProfileEditor({
                   <Trash2 size={14} /> ลบรูป
                 </button>
               )}
-              <span className="form-text m-0">ระบบย่อรูปและครอปเป็นสี่เหลี่ยมให้อัตโนมัติ</span>
+              <span className="form-text m-0">
+                {profile.avatar_url
+                  ? "ระบบย่อรูปและครอปเป็นสี่เหลี่ยมให้อัตโนมัติ"
+                  : "ยังไม่มีรูป — จอจะแสดงรูปการ์ตูนแทน"}
+              </span>
             </>
           ) : (
-            <span className="form-text m-0">เฉพาะแอดมินเท่านั้นที่เพิ่ม/เปลี่ยน/ลบรูปได้</span>
+            <span className="form-text m-0">บัญชีนี้ยังไม่มีสิทธิ์เปลี่ยนรูป</span>
           )}
         </div>
       </div>
 
       <label className="form-label small fw-bold mt-3 mb-1" htmlFor={`rk-nick-${memberId}`}>
-        ชื่อที่แสดงบนจออันดับ (ชื่อเล่น)
+        ชื่อเล่นบนจออันดับ (ไม่บังคับ)
       </label>
       <input
         id={`rk-nick-${memberId}`}
-        className={`form-control ${needName ? "is-invalid" : ""}`}
+        className="form-control"
         value={nick}
         maxLength={DISPLAY_NAME_MAX}
         onChange={(e) => setNick(e.target.value)}
-        placeholder="เช่น บอส, KongZ, น้องดาว"
+        placeholder="ว่างไว้ = ใช้ชื่อสมาชิก"
+        disabled={!canManage}
       />
-      <div className="form-text">
-        ห้ามใช้ชื่อ-นามสกุลจริงหรือเบอร์โทร · ไม่เกิน {DISPLAY_NAME_MAX} ตัวอักษร
-      </div>
+      <div className="form-text">ไม่เกิน {DISPLAY_NAME_MAX} ตัวอักษร</div>
 
-      <label className="yl-rk-consent mt-2" htmlFor={`rk-show-${memberId}`}>
+      <label className="yl-rk-consent mt-2" htmlFor={`rk-hide-${memberId}`}>
         <input
-          id={`rk-show-${memberId}`}
+          id={`rk-hide-${memberId}`}
           type="checkbox"
           className="form-check-input"
-          checked={show}
-          onChange={(e) => setShow(e.target.checked)}
+          checked={hide}
+          onChange={(e) => setHide(e.target.checked)}
+          disabled={!canManage}
         />
         <span>
-          {show ? <Eye size={15} /> : <EyeOff size={15} />} ลูกค้ายินยอมให้แสดงชื่อนี้ รูป และแต้ม
-          บนจออันดับในร้าน
+          {hide ? <EyeOff size={15} /> : <Eye size={15} />} ซ่อนลูกค้าคนนี้จากจออันดับในร้าน
+          (เฉพาะกรณีลูกค้าขอไม่แสดง)
         </span>
       </label>
-      {needName && <div className="invalid-feedback d-block">ตั้งชื่อที่แสดงก่อน</div>}
 
       {msg && (
         <div className={`small mt-2 ${msg.ok ? "text-success" : "text-danger"}`}>{msg.text}</div>
       )}
 
-      <button
-        className="btn btn-primary w-100 btn-sm mt-2"
-        onClick={() => void save()}
-        disabled={!dirty || needName || !!busy}
-      >
-        {busy === "save" ? "กำลังบันทึก..." : "บันทึกการตั้งค่าจออันดับ"}
-      </button>
+      {canManage && (
+        <button
+          className="btn btn-primary w-100 btn-sm mt-2"
+          onClick={() => void save()}
+          disabled={!dirty || !!busy}
+        >
+          {busy === "save" ? "กำลังบันทึก..." : "บันทึกชื่อเล่น / การแสดงผล"}
+        </button>
+      )}
 
       <ConfirmDialog
         open={confirmRemove}
@@ -431,7 +449,7 @@ export function RankingProfileEditor({
         variant="danger"
         confirmLabel="ลบรูป"
         cancelLabel="ไม่ลบ"
-        message="ลบรูปนี้แล้วจะกลับไปใช้รูปเริ่มต้น"
+        message="ลบรูปนี้แล้วจะกลับไปใช้รูปการ์ตูนแทน"
         onConfirm={() => void removePhoto()}
         onCancel={() => setConfirmRemove(false)}
       />

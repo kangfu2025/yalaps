@@ -18,7 +18,8 @@ export interface RankRow {
   member_id: string;
   name: string;
   display_name: string | null;
-  show_on_ranking: boolean;
+  /** ลูกค้าขอไม่แสดงบนจออันดับในร้าน */
+  hide_from_ranking: boolean;
   avatar_url: string | null;
   points: number;
   last_earned_at: string | null;
@@ -33,7 +34,7 @@ export interface RankResult {
   rows: RankRow[];
 }
 
-/** แถวสำหรับจอสาธารณะ — มีแค่ อันดับ ชื่อที่แสดง รูป แต้ม */
+/** แถวสำหรับจอสาธารณะ — มีแค่ อันดับ ชื่อ (ชื่อเล่นหรือชื่อสมาชิก) รูป แต้ม */
 export interface PublicRankRow {
   rank: number;
   name: string;
@@ -101,18 +102,18 @@ export async function getPublicRanking(
 }
 
 // ============================================================
-// โปรไฟล์บนจออันดับ (ชื่อที่แสดง / ยินยอม / รูป)
+// โปรไฟล์บนจออันดับ (ชื่อเล่น / ซ่อนจากจอ / รูป)
 // ============================================================
 
 export type RankingProfile = Pick<
   Member,
-  "id" | "display_name" | "show_on_ranking" | "avatar_url" | "avatar_path"
+  "id" | "display_name" | "hide_from_ranking" | "avatar_url" | "avatar_path"
 >;
 
 export async function getRankingProfile(memberId: string): Promise<RankingProfile> {
   const { data, error } = await supabase
     .from("members")
-    .select("id, display_name, show_on_ranking, avatar_url, avatar_path")
+    .select("id, display_name, hide_from_ranking, avatar_url, avatar_path")
     .eq("id", memberId)
     .single();
   if (error) throw toError(error);
@@ -121,17 +122,19 @@ export async function getRankingProfile(memberId: string): Promise<RankingProfil
 
 export const DISPLAY_NAME_MAX = 24;
 
-/** ตั้งชื่อที่แสดง + ความยินยอม (พนักงานทำได้ — ฐานข้อมูลบังคับว่ายินยอมต้องมีชื่อ) */
-export async function saveRankingConsent(
+/**
+ * ตั้งชื่อเล่น (ว่าง = ใช้ชื่อสมาชิก) และซ่อน/ไม่ซ่อนจากจออันดับ
+ * พนักงานทำได้ — ค่าเริ่มต้นทุกคนขึ้นจอ ซ่อนเฉพาะคนที่ลูกค้าขอ
+ */
+export async function saveRankingProfile(
   memberId: string,
   displayName: string,
-  show: boolean,
+  hide: boolean,
 ): Promise<void> {
   const name = displayName.trim().slice(0, DISPLAY_NAME_MAX);
-  if (show && !name) throw new Error("ตั้งชื่อที่แสดงก่อน จึงจะเปิดให้แสดงบนจออันดับได้");
   const { error } = await supabase
     .from("members")
-    .update({ display_name: name || null, show_on_ranking: show })
+    .update({ display_name: name || null, hide_from_ranking: hide })
     .eq("id", memberId);
   if (error) throw toError(error);
 }
@@ -174,7 +177,7 @@ async function squareImage(file: File): Promise<Blob> {
   return blob;
 }
 
-/** เพิ่ม/เปลี่ยนรูปสมาชิก (เฉพาะแอดมิน — Storage และ trigger ในฐานข้อมูลบังคับซ้ำ) */
+/** เพิ่ม/เปลี่ยนรูปสมาชิก (พนักงาน/แอดมิน — Storage และ trigger ในฐานข้อมูลตรวจสิทธิ์ซ้ำ) */
 export async function uploadMemberAvatar(
   profile: RankingProfile,
   file: File,

@@ -4235,29 +4235,10 @@ label.small {
   object-fit: cover;
   display: block;
 }
-.yl-rk-avatar.is-default::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.35), transparent 45%),
-    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0 6px, transparent 6px 12px);
-  pointer-events: none;
-}
-.yl-rk-initial {
-  font-family: "Prompt", system-ui, sans-serif;
-  font-weight: 800;
-  font-size: 46cqw;
-  line-height: 1;
-  color: #fff;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-}
-.yl-rk-pad {
-  width: 52%;
-  height: 52%;
-  color: #fff;
-  opacity: 0.9;
+.yl-rk-cartoon {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .yl-rk-avatar.is-xs {
   width: 30px;
@@ -4379,8 +4360,8 @@ button.yl-rk-step:focus-visible {
   width: 1.9em;
   height: 1.9em;
   border-radius: 50%;
-  font-family: "Orbitron", "Prompt", sans-serif;
-  font-weight: 900;
+  font-family: "Prompt", system-ui, sans-serif;
+  font-weight: 800;
   font-size: 0.85em;
   color: #1a1206;
   background: radial-gradient(circle at 35% 30%, var(--t1), var(--t2) 55%, var(--t3));
@@ -4419,8 +4400,8 @@ button.yl-rk-step:focus-visible {
 }
 .yl-rk-pts {
   margin: 0.15em 0 0.5em;
-  font-family: "Orbitron", "Prompt", sans-serif;
-  font-weight: 900;
+  font-family: "Prompt", system-ui, sans-serif;
+  font-weight: 800;
   font-size: 1.15em;
   color: var(--t2);
   font-variant-numeric: tabular-nums;
@@ -4431,9 +4412,9 @@ button.yl-rk-step:focus-visible {
 .yl-rk-pts small,
 .yl-rk-score small {
   margin-left: 0.3em;
-  font-size: 0.55em;
-  letter-spacing: 0.1em;
-  opacity: 0.75;
+  font-size: 0.62em;
+  font-weight: 600;
+  opacity: 0.8;
 }
 .yl-rk-block {
   position: relative;
@@ -4453,15 +4434,15 @@ button.yl-rk-step:focus-visible {
     0 -0.4em 1.4em -0.6em var(--t2);
 }
 .yl-rk-block span {
-  font-family: "Orbitron", "Prompt", sans-serif;
-  font-weight: 900;
-  font-size: 1.35em;
-  letter-spacing: 0.08em;
+  font-family: "Prompt", system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 1.15em;
+  white-space: nowrap;
   color: #fff;
   text-shadow: 0 0.1em 0.4em rgba(0, 0, 0, 0.6);
 }
 .yl-rk-step.is-gold .yl-rk-block span {
-  font-size: 1.8em;
+  font-size: 1.45em;
 }
 .yl-rk-block::after {
   content: "";
@@ -4510,8 +4491,8 @@ button.yl-rk-step:focus-visible {
   outline: none;
 }
 .yl-rk-no {
-  font-family: "Orbitron", "Prompt", sans-serif;
-  font-weight: 900;
+  font-family: "Prompt", system-ui, sans-serif;
+  font-weight: 800;
   font-size: 1.15em;
   text-align: center;
   color: #c4b5fd;
@@ -4560,8 +4541,8 @@ button.yl-rk-step:focus-visible {
   animation: rkGrow 0.9s 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .yl-rk-score {
-  font-family: "Orbitron", "Prompt", sans-serif;
-  font-weight: 900;
+  font-family: "Prompt", system-ui, sans-serif;
+  font-weight: 800;
   font-size: 1.05em;
   color: var(--rk-cyan);
   font-variant-numeric: tabular-nums;
@@ -4770,7 +4751,7 @@ button.yl-rk-step:focus-visible {
   margin-bottom: 1.6em;
 }
 .yl-rk-brand {
-  font-family: "Orbitron", "Prompt", sans-serif;
+  font-family: "Prompt", system-ui, sans-serif;
   font-weight: 700;
   letter-spacing: 0.45em;
   font-size: 0.8em;
@@ -4782,11 +4763,10 @@ button.yl-rk-step:focus-visible {
   justify-content: center;
   gap: 0.3em;
   margin: 0.15em 0 0.25em;
-  font-family: "Orbitron", "Prompt", sans-serif;
-  font-weight: 900;
-  font-size: 2.6em;
-  letter-spacing: 0.06em;
-  line-height: 1.05;
+  font-family: "Prompt", system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 2.3em;
+  line-height: 1.4;
   background: linear-gradient(90deg, #fde68a, #fbbf24 30%, #f472b6 65%, #22d3ee);
   background-size: 200% 100%;
   -webkit-background-clip: text;

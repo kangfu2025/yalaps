@@ -15,7 +15,7 @@ export interface Member {
   updated_at: string;
   /** อันดับลูกค้า (ranking_migration.sql) — ไม่มีถ้ายังไม่ได้รัน migration */
   display_name?: string | null;
-  show_on_ranking?: boolean;
+  hide_from_ranking?: boolean;
   avatar_url?: string | null;
   avatar_path?: string | null;
 }

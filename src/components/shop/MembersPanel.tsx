@@ -400,7 +400,8 @@ function MemberDetail({
                 <label className="small fw-bold">จออันดับลูกค้า</label>
                 <RankingProfileEditor
                   memberId={member.id}
-                  isAdmin={role === "admin"}
+                  memberName={member.name}
+                  canManage={role === "admin" || role === "staff"}
                   onSaved={onChanged}
                 />
 
