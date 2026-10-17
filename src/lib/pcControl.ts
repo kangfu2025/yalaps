@@ -96,8 +96,10 @@ export async function startPcSession(opts: {
   await assertShopOpen();
   const now = new Date();
   const ends = new Date(now.getTime() + opts.minutes * 60_000);
-  const price = opts.price ?? calcPcPrice(opts.minutes);
   const redeemed = opts.redeemedPoints ?? false;
+  // แถมฟรี = ราคา 0 ตั้งแต่เปิดเครื่อง — price เก็บเฉพาะยอดที่ต้องเก็บเงินจริง
+  // (เดิมเก็บราคาเต็มไว้ ตอนปิดเครื่องจึงขึ้นค้างชำระทั้งที่แถมไปแล้ว)
+  const price = redeemed ? 0 : (opts.price ?? calcPcPrice(opts.minutes));
   const paidCash = redeemed ? 0 : (opts.paidCash ?? 0);
   const paidTransfer = redeemed ? 0 : (opts.paidTransfer ?? 0);
   const { data, error } = await supabase
@@ -155,8 +157,9 @@ export async function extendPcSession(
   if (error) throw error;
   const session = s as PcSession;
   const newEnds = new Date(new Date(session.ends_at).getTime() + extraMinutes * 60_000);
-  const extraPrice = calcPcPrice(extraMinutes);
   const redeemed = opts.redeemedPoints ?? false;
+  // ต่อเวลาแบบแถมฟรี ไม่บวกราคา — ไม่งั้นตอนปิดเครื่องจะขึ้นค้างชำระส่วนที่แถม
+  const extraPrice = redeemed ? 0 : calcPcPrice(extraMinutes);
   const addCash = redeemed ? 0 : (opts.paidCash ?? 0);
   const addTransfer = redeemed ? 0 : (opts.paidTransfer ?? 0);
   await supabase.from("pc_sessions").update({

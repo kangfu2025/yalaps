@@ -124,8 +124,10 @@ export function ReportPanel({
   const sumPcMinutes = paidPcRows.reduce((s, r) => s + Number(r.minutes_purchased), 0);
   const sumPcPrice = paidPcRows.reduce((s, r) => s + Number(r.price), 0);
   const sumPcFood = pcVisibleRows.reduce((s, r) => s + Number(r.food_amount ?? 0), 0);
-  const sumPcCash = paidPcRows.reduce((s, r) => s + Number(r.paid_cash ?? 0), 0);
-  const sumPcTransfer = paidPcRows.reduce((s, r) => s + Number(r.paid_transfer ?? 0), 0);
+  // ยอดเงินนับจากเงินที่รับจริงของทุกบิลที่ไม่ได้ยกเลิก (ตรงกับลิ้นชักและบัญชีรายเดือน)
+  // บิลที่เปิดแบบแถมฟรีแล้วต่อเวลาแบบจ่ายเงิน ก็นับเงินส่วนที่จ่ายด้วย
+  const sumPcCash = pcVisibleRows.reduce((s, r) => s + Number(r.paid_cash ?? 0), 0);
+  const sumPcTransfer = pcVisibleRows.reduce((s, r) => s + Number(r.paid_transfer ?? 0), 0);
   // ---- รายได้สินค้า (POS) ----
   const [productSales, setProductSales] = useState<
     (ProductSale & { product_sale_items: ProductSaleItem[] })[]
@@ -175,8 +177,8 @@ export function ReportPanel({
       if (p.status === "cancelled") continue;
       const key = bkkDateStr(p.started_at);
       if (!map.has(key)) continue;
-      let v = Number(p.food_amount ?? 0);
-      if (!p.redeemed_points) v += Number(p.price);
+      // เงินที่รับจริง (รวมค่าอาหารที่เก็บตอนปิดเครื่องแล้ว) — บิลแถมฟรีเป็น 0 เอง
+      const v = Number(p.paid_cash ?? 0) + Number(p.paid_transfer ?? 0);
       map.set(key, (map.get(key) ?? 0) + v);
     }
     return Array.from(map.entries()).map(([d, total]) => ({
@@ -502,7 +504,8 @@ export function ReportPanel({
                           <td>{formatBaht(Number(p.price))}</td>
                           <td>{formatBaht(Number(p.food_amount ?? 0))}</td>
                           <td className="text-success">
-                            {p.redeemed_points ? (
+                            {p.redeemed_points &&
+                            Number(p.paid_cash ?? 0) + Number(p.paid_transfer ?? 0) === 0 ? (
                               <span className="badge" style={{ background: "#a855f7" }}>
                                 🎁 แถมฟรี
                               </span>
@@ -511,7 +514,10 @@ export function ReportPanel({
                             )}
                           </td>
                           <td className="text-primary">
-                            {p.redeemed_points ? "—" : formatBaht(Number(p.paid_transfer ?? 0))}
+                            {p.redeemed_points &&
+                            Number(p.paid_cash ?? 0) + Number(p.paid_transfer ?? 0) === 0
+                              ? "—"
+                              : formatBaht(Number(p.paid_transfer ?? 0))}
                           </td>
                         </tr>
                       );

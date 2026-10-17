@@ -68,6 +68,9 @@ import { ConfirmDialog } from "./ConfirmDialog";
 
 type PayMode = "cash" | "transfer" | "mixed" | "points" | "credit";
 
+/** บิล PC แถมฟรีที่เปิดก่อนเวลานี้ใช้รูปแบบข้อมูลเก่า (price = ราคาเต็ม) — ดู EndPcModal */
+const LEGACY_FREE_BEFORE = Date.parse("2026-10-20T00:00:00+07:00");
+
 function PayModeRadio({
   value,
   onChange,
@@ -230,7 +233,11 @@ export function PcZonePanel({ machines }: Props) {
                         {session.customer_name || `ลูกค้า PC ${m.machine_number}`}
                       </div>
                       <div className="pcz-meta-label mt-1" style={{ letterSpacing: ".04em" }}>
-                        {session.minutes_purchased} นาที · {formatBaht(session.price)} บาท
+                        {session.minutes_purchased} นาที ·{" "}
+                        {session.redeemed_points &&
+                        Number(session.paid_cash ?? 0) + Number(session.paid_transfer ?? 0) === 0
+                          ? "🎁 แถมฟรี"
+                          : `${formatBaht(session.price)} บาท`}
                       </div>
                     </div>
                     <div className="text-end">
@@ -1058,8 +1065,15 @@ function EndPcModal({
 
   const now = Date.now();
   const usedMin = Math.max(0, Math.round((now - new Date(session.started_at).getTime()) / 60_000));
-  const machinePrice = Number(session.price ?? 0);
   const alreadyPaid = Number(session.paid_cash ?? 0) + Number(session.paid_transfer ?? 0);
+  // บิลแถมฟรีที่เปิดก่อนแก้บั๊ก ยังเก็บราคาเต็มไว้ใน price (ทั้งที่ไม่ได้รับเงิน)
+  // ถือว่าค่าเครื่องเป็น 0 ไม่งั้นจะขึ้นค้างชำระ และถ้ากดยืนยันจะบันทึกเงินสดที่ไม่ได้รับ
+  // บิลที่เปิดหลังแก้แล้วเก็บ price = 0 ตั้งแต่ต้น จึงไม่เข้าเงื่อนไขนี้
+  const legacyFree =
+    !!session.redeemed_points &&
+    alreadyPaid === 0 &&
+    new Date(session.created_at).getTime() < LEGACY_FREE_BEFORE;
+  const machinePrice = legacyFree ? 0 : Number(session.price ?? 0);
   const foodAmount = Number(food) || 0;
   const grandTotal = machinePrice + foodAmount + productTotal;
   const remaining = Math.max(0, grandTotal - alreadyPaid);
