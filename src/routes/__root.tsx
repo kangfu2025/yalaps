@@ -10,9 +10,12 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import viceCss from "../theme-vice.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import "../lib/stale-chunk-recovery";
 import { AuthProvider } from "../lib/auth";
+import { AppThemeProvider } from "../hooks/useAppTheme";
+import { THEME_BOOT_SCRIPT } from "../lib/theme";
 
 function NotFoundComponent() {
   return (
@@ -93,18 +96,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css",
       },
+      // ฟอนต์เดียวทั้งระบบ: Anuphan (ไทย + อังกฤษ)
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800&display=swap",
-      },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Work+Sans:wght@300;400;600;700&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap",
       },
 
       {
         rel: "stylesheet",
         href: appCss,
+      },
+      // ธีม Vice Night — มีผลเฉพาะตอน <html data-theme="vice">
+      {
+        rel: "stylesheet",
+        href: viceCss,
       },
     ],
   }),
@@ -116,8 +123,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    // data-theme ถูกตั้งโดยสคริปต์ด้านล่างก่อน React เริ่มทำงาน จึงต้องบอกให้ไม่เตือนว่าไม่ตรง
+    <html lang="th" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <HeadContent />
       </head>
       <body>
@@ -134,8 +143,10 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
+        <AppThemeProvider>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+        </AppThemeProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

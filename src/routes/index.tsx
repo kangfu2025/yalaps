@@ -2,17 +2,17 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Menu, AlertTriangle, Tag } from "lucide-react";
 import { useShopData } from "@/hooks/useShopData";
-import { MachineCard } from "@/components/shop/MachineCard";
+import { Dashboard } from "@/components/shop/Dashboard";
 import { StartModal } from "@/components/shop/StartModal";
-import { ManageModal } from "@/components/shop/ManageModal";
+import { ManageModal, type ManageTab } from "@/components/shop/ManageModal";
 import { ReportPanel } from "@/components/shop/ReportPanel";
 import { ExpensesPanel } from "@/components/shop/ExpensesPanel";
 import { ShiftsPanel } from "@/components/shop/ShiftsPanel";
-import { ShopBar, ShopOverlays } from "@/components/shop/ShopDrawer";
+import { ShopOverlays } from "@/components/shop/ShopDrawer";
 import { ShopProvider, useShop } from "@/hooks/useShop";
 import { PromotionPanel } from "@/components/shop/PromotionPanel";
+import { PackagesPanel } from "@/components/shop/PackagesPanel";
 import { PromoImagesPanel } from "@/components/shop/PromoImagesPanel";
-import { PcZonePanel } from "@/components/shop/PcZonePanel";
 import { UsersPanel } from "@/components/shop/UsersPanel";
 import { MembersPanel } from "@/components/shop/MembersPanel";
 import { RankingPanel } from "@/components/shop/RankingPanel";
@@ -23,6 +23,7 @@ import { ConfirmDialog } from "@/components/shop/ConfirmDialog";
 import { AdminSidebar, type Tab } from "@/components/shop/AdminSidebar";
 import type { Machine, Reservation } from "@/lib/supabase";
 import { cancelReservation } from "@/lib/reservations";
+import { fmtMinutes } from "@/lib/packages";
 import { formatBaht } from "@/lib/priceEngine";
 import { getZonePrice } from "@/lib/promotions";
 import { useAuth } from "@/lib/auth";
@@ -38,11 +39,10 @@ export const Route = createFileRoute("/")({
   component: IndexGuarded,
 });
 
-const STAFF_TABS: Tab[] = ["dash", "pc", "pos", "stock", "report", "screen", "members", "ranking"];
+const STAFF_TABS: Tab[] = ["dash", "pos", "stock", "report", "screen", "members", "ranking"];
 
 const TAB_TITLE: Record<Tab, string> = {
-  dash: "แดชบอร์ด PS5",
-  pc: "โซน PC",
+  dash: "แดชบอร์ด",
   pos: "ขายสินค้า",
   stock: "คลังสินค้า",
   report: "บัญชีและสรุปยอด",
@@ -77,7 +77,7 @@ function IndexGuarded() {
 function Index() {
   const { machines, resByMachine, activePromotion, loading, error, refresh } = useShopData();
   const { username, role, signOut } = useAuth();
-  const { guardStart } = useShop();
+  const { guardStart, notify } = useShop();
   const navigate = useNavigate();
   const isAdmin = role === "admin";
   const [tab, setTab] = useState<Tab>("dash");
@@ -85,19 +85,20 @@ function Index() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const [startTarget, setStartTarget] = useState<Machine | null>(null);
-  const [manageTarget, setManageTarget] = useState<{ m: Machine; r: Reservation } | null>(null);
+  const [manageTarget, setManageTarget] = useState<{
+    m: Machine;
+    r: Reservation;
+    tab?: ManageTab;
+  } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<{ m: Machine; r: Reservation } | null>(null);
 
-  // staff เข้าได้เฉพาะ dash/pc — ถ้าหลุดไป tab อื่นให้ดีดกลับ
+  // staff เข้าได้เฉพาะแท็บใน STAFF_TABS — ถ้าหลุดไป tab อื่นให้ดีดกลับ
   useEffect(() => {
     if (!isAdmin && !STAFF_TABS.includes(tab)) setTab("dash");
   }, [isAdmin, tab]);
 
   const effTab: Tab = isAdmin || STAFF_TABS.includes(tab) ? tab : "dash";
 
-  const sofa = machines.filter((m) => m.zone === "sofa");
-  const racing = machines.filter((m) => m.zone === "racing");
-  const pcs = machines.filter((m) => m.zone === "pc");
   const sofaOverride = activePromotion ? getZonePrice("sofa", activePromotion) : null;
   const racingOverride = activePromotion ? getZonePrice("racing", activePromotion) : null;
 
@@ -111,7 +112,14 @@ function Index() {
     const { m, r } = cancelTarget;
     setCancelTarget(null);
     try {
-      await cancelReservation(m.id, r.id);
+      const { bankReturned } = await cancelReservation(m.id, r.id);
+      if (bankReturned) {
+        notify({
+          kind: "info",
+          title: `คืนชั่วโมงสะสม ${fmtMinutes(bankReturned.saved_minutes)}`,
+          text: `ยกเลิกบิลแล้ว · ${r.customer_name} คงเหลือ ${fmtMinutes(bankReturned.balance)}`,
+        });
+      }
       await refresh();
     } catch (e) {
       alert("ยกเลิกไม่สำเร็จ: " + (e instanceof Error ? e.message : String(e)));
@@ -173,51 +181,24 @@ function Index() {
               </div>
             )}
 
-            {/* สถานะร้าน + ปุ่มเปิด/ปิดร้าน — เห็นทุกครั้งที่อยู่หน้าที่เปิดเครื่องได้ */}
-            {(effTab === "dash" || effTab === "pc") && <ShopBar isAdmin={isAdmin} />}
-
             {loading ? (
               <div className="text-center py-5 text-muted">กำลังโหลด...</div>
             ) : effTab === "dash" ? (
-              <>
-                <h5 className="zone-sofa-title">🛋️ โซนโซฟา</h5>
-                <div className="row row-cols-1 row-cols-md-3 row-cols-lg-5 g-3">
-                  {sofa.map((m) => (
-                    <MachineCard
-                      key={m.id}
-                      machine={m}
-                      reservation={resByMachine.get(m.id)}
-                      priceOverride={sofaOverride}
-                      onStart={(mc) => {
-                        // ร้านปิดอยู่ -> แจ้งเตือนตั้งแต่ตรงนี้ ไม่ให้ไปถึงขั้นรับเงินลูกค้า
-                        if (guardStart()) setStartTarget(mc);
-                      }}
-                      onManage={(machine, r) => setManageTarget({ m: machine, r })}
-                      onCancel={(m, r) => setCancelTarget({ m, r })}
-                    />
-                  ))}
-                </div>
-
-                <h5 className="zone-racing-title">🏎️ โซนรถแข่ง</h5>
-                <div className="row row-cols-1 row-cols-md-3 g-3">
-                  {racing.map((m) => (
-                    <MachineCard
-                      key={m.id}
-                      machine={m}
-                      reservation={resByMachine.get(m.id)}
-                      priceOverride={racingOverride}
-                      onStart={(mc) => {
-                        // ร้านปิดอยู่ -> แจ้งเตือนตั้งแต่ตรงนี้ ไม่ให้ไปถึงขั้นรับเงินลูกค้า
-                        if (guardStart()) setStartTarget(mc);
-                      }}
-                      onManage={(machine, r) => setManageTarget({ m: machine, r })}
-                      onCancel={(m, r) => setCancelTarget({ m, r })}
-                    />
-                  ))}
-                </div>
-              </>
-            ) : effTab === "pc" ? (
-              <PcZonePanel machines={pcs} />
+              // ทุกโซนอยู่หน้าเดียว (โซฟา · รถแข่ง · PC) — แถบสถานะร้านอยู่ในแดชบอร์ด
+              <Dashboard
+                machines={machines}
+                resByMachine={resByMachine}
+                sofaOverride={sofaOverride}
+                racingOverride={racingOverride}
+                isAdmin={isAdmin}
+                onStart={(mc) => {
+                  // ร้านปิดอยู่ -> แจ้งเตือนตั้งแต่ตรงนี้ ไม่ให้ไปถึงขั้นรับเงินลูกค้า
+                  if (guardStart()) setStartTarget(mc);
+                }}
+                onManage={(machine, r) => setManageTarget({ m: machine, r })}
+                onExtend={(machine, r) => setManageTarget({ m: machine, r, tab: "extend" })}
+                onCancel={(m, r) => setCancelTarget({ m, r })}
+              />
             ) : effTab === "pos" ? (
               <ProductSalePanel machines={machines} resByMachine={resByMachine} />
             ) : effTab === "stock" ? (
@@ -237,7 +218,10 @@ function Index() {
             ) : effTab === "drawer" ? (
               <ShiftsPanel />
             ) : effTab === "promo" ? (
-              <PromotionPanel />
+              <>
+                <PackagesPanel />
+                <PromotionPanel />
+              </>
             ) : effTab === "line" ? (
               <LineSettingsPanel />
             ) : effTab === "users" ? (
@@ -262,6 +246,7 @@ function Index() {
           onClose={() => setManageTarget(null)}
           onSuccess={refresh}
           promotion={activePromotion}
+          initialTab={manageTarget.tab}
         />
       )}
 
@@ -283,6 +268,22 @@ function Index() {
               </span>
               <br />
               <span className="text-warning small">⚠️ เครื่องจะกลับเป็นว่างพร้อมใช้</span>
+              {(Number(cancelTarget.r.hour_bank_used_min) || 0) > 0 && (
+                <>
+                  <br />
+                  <span className="text-info small">
+                    ⏳ บิลนี้เปิดด้วยชั่วโมงสะสม — เวลาที่ยังไม่ได้เล่นจะคืนเข้าบัญชีสมาชิก
+                  </span>
+                </>
+              )}
+              {cancelTarget.r.package_id && (
+                <>
+                  <br />
+                  <span className="text-danger small">
+                    💸 บิลแพ็กเกจ — ยกเลิกแล้วไม่เก็บชั่วโมง ถ้าลูกค้าจะเก็บเวลาให้ใช้ "เช็คบิล" แทน
+                  </span>
+                </>
+              )}
             </div>
           ) : (
             ""

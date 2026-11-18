@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { ThemeSwitch } from "./ThemeSwitch";
 import type { LucideIcon } from "lucide-react";
 import {
   Gamepad2,
@@ -24,7 +25,6 @@ import {
 
 export type Tab =
   | "dash"
-  | "pc"
   | "pos"
   | "stock"
   | "report"
@@ -43,8 +43,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
   {
     title: "ปฏิบัติการ",
     items: [
-      { key: "dash", label: "แดชบอร์ด PS5", icon: Gamepad2 },
-      { key: "pc", label: "โซน PC", icon: Monitor },
+      { key: "dash", label: "แดชบอร์ด", icon: Gamepad2 },
       { key: "pos", label: "ขายสินค้า", icon: ShoppingCart },
       { key: "stock", label: "คลังสินค้า", icon: Package },
       { key: "members", label: "สมาชิก", icon: IdCard },
@@ -159,6 +158,7 @@ export function AdminSidebar({
         </nav>
 
         <div className="yl-sb-foot">
+          <ThemeSwitch isAdmin={isAdmin} />
           <Link to="/display" target="_blank" className="yl-sb-item" title="จอลูกค้า">
             <Monitor size={17} className="yl-sb-ico" />
             <span className="yl-sb-label">จอลูกค้า</span>

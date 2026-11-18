@@ -98,7 +98,7 @@ function CustomerScreenPage() {
         color: "#ffffff",
         overflow: "hidden",
         fontFamily:
-          'system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Thai", sans-serif',
+          '"Anuphan", "Noto Sans Thai", system-ui, sans-serif',
       }}
     >
       {/* Left ~60%: info */}

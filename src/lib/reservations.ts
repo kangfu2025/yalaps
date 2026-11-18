@@ -4,6 +4,13 @@ import { markMachinePlaying, resetMachineToIdle } from "./machines";
 import { notifyLine } from "./lineNotify";
 import { buildStartMessage, buildExtendMessage, buildCancelMessage } from "./lineMessages";
 import { getMember, redeemFreeHour, refundPoints } from "./members";
+import {
+  redeemHourBank,
+  refundHourBank,
+  linkHourBank,
+  saveHourBank,
+  type SaveResult,
+} from "./packages";
 
 export async function getActiveReservation(machineId: string): Promise<Reservation | null> {
   // ค้นจาก machines.current_reservation_id ก่อน เพื่อความถูกต้อง
@@ -46,19 +53,29 @@ export interface StartSessionInput {
   useFreeHour?: boolean;
   /** มูลค่าส่วนลด 1 ชม. ของโซนนี้ (บาท) — ผู้เรียกคำนวณมาแล้วเพราะรู้ราคาโปรด้วย */
   freeHourValue?: number;
+  /** เปิดด้วยแพ็กเกจ — ราคาจริงฐานข้อมูลอ่านจากตารางแพ็กเกจเอง ส่งแค่รหัสกับนาที (ใช้ตั้งเวลา) */
+  pkg?: { id: string; minutes: number } | null;
+  /** เปิดด้วยชั่วโมงสะสมของสมาชิก (นาที) — ต้องมี memberId */
+  hourBankMinutes?: number;
 }
 
 export async function startSession(input: StartSessionInput): Promise<Reservation> {
   // ร้านยังไม่เปิด = ไม่เริ่มอะไรทั้งนั้น (เช็กก่อนหักแต้ม) — ด่านจริงคือ trigger ในฐานข้อมูล
   await assertShopOpen();
   const now = new Date();
-  const endMs = now.getTime() + input.baseHours * 3600 * 1000;
+  const bankMin = Math.max(0, Math.round(Number(input.hourBankMinutes) || 0));
+  if (bankMin > 0 && !input.memberId) throw new Error("ใช้ชั่วโมงสะสมต้องเลือกสมาชิกก่อน");
+  if (bankMin > 0 && input.pkg) throw new Error("เลือกได้อย่างเดียว: แพ็กเกจ หรือ ชั่วโมงสะสม");
+  // แพ็กเกจ/ชั่วโมงสะสม ตั้งเวลาตามนาทีจริง (เช่น 3 ชม. 20 นาที) ไม่ปัดเป็นครึ่งชั่วโมง
+  const playMinutes = input.pkg ? input.pkg.minutes : bankMin > 0 ? bankMin : null;
+  const endMs = now.getTime() + (playMinutes ?? input.baseHours * 60) * 60 * 1000;
 
   // หักแต้มก่อนสร้างบิล — ขั้นนี้ล้มเหลวได้ (แต้มไม่พอ / โซนแลกไม่ได้)
   // ถ้าล้มที่นี่ยังไม่มีอะไรถูกสร้าง พนักงานเก็บเงินเต็มแล้วเปิดใหม่ได้เลย
   let pointsSpent = 0;
   let pointsDiscount = 0;
-  if (input.useFreeHour && input.memberId) {
+  // แพ็กเกจ/ชั่วโมงสะสม ใช้ร่วมกับแลกแต้มฟรี 1 ชม. ไม่ได้ (ราคาตายตัวแล้ว)
+  if (input.useFreeHour && input.memberId && !playMinutes) {
     const res = await redeemFreeHour({ memberId: input.memberId, zone: input.zone });
     if (!res.ok) throw new Error(res.message || "ใช้แต้มไม่สำเร็จ");
     pointsSpent = Number(res.cost) || 0;
@@ -85,8 +102,22 @@ export async function startSession(input: StartSessionInput): Promise<Reservatio
     row.points_discount = pointsDiscount;
     row.points_spent = pointsSpent;
   }
+  if (input.pkg) row.package_id = input.pkg.id;
+
+  // หักชั่วโมงสะสมก่อนสร้างบิล (เหมือนหักแต้ม) — ชั่วโมงไม่พอจะล้มตรงนี้ ยังไม่มีบิล
+  let bankTx: string | null = null;
+  if (bankMin > 0 && input.memberId) {
+    const red = await redeemHourBank(input.memberId, bankMin);
+    bankTx = red.tx_id;
+    row.hour_bank_used_min = bankMin;
+    row.hour_bank_expires_at = red.expires_at;
+  }
 
   const { data, error } = await supabase.from("reservations").insert(row).select().single();
+  // หักชั่วโมงไปแล้วแต่สร้างบิลไม่ได้ -> คืนเข้าก้อนเดิม
+  if (error && bankTx) {
+    await refundHourBank(bankTx).catch((e) => console.error("[hour-bank] refund failed:", e));
+  }
   // หักแต้มไปแล้วแต่สร้างบิลไม่ได้ -> คืนแต้มให้ก่อน ไม่งั้นลูกค้าเสียแต้มฟรี
   if (error) {
     if (pointsSpent > 0 && input.memberId) {
@@ -99,6 +130,10 @@ export async function startSession(input: StartSessionInput): Promise<Reservatio
       }
     }
     throw error;
+  }
+
+  if (bankTx) {
+    await linkHourBank(bankTx, data.id).catch((e) => console.error("[hour-bank] link failed:", e));
   }
 
   await markMachinePlaying(input.machineId, data.id);
@@ -190,8 +225,30 @@ export async function addFood(
   if (error) throw error;
 }
 
-/** ยกเลิกบิล: UPDATE เป็น cancelled + reset machine (ห้าม DELETE) */
+/**
+ * ยกเลิกบิล: UPDATE เป็น cancelled + reset machine (ห้าม DELETE)
+ *
+ * บิลที่เปิดด้วยชั่วโมงสะสม: เก็บเวลาที่ยังไม่ได้เล่นคืนเข้าบัญชีก่อนยกเลิก
+ * (วันหมดอายุเดิม) ไม่งั้นยกเลิกแล้วลูกค้าเสียชั่วโมงไปฟรี ๆ
+ * คืนไม่สำเร็จ = ไม่ยกเลิก ให้พนักงานเห็นข้อความแล้วตัดสินใจเอง
+ */
 export async function cancelReservation(machineId: string, reservationId: string) {
+  const before = await getReservationById(reservationId).catch(() => null);
+  let bankReturned: SaveResult | null = null;
+  if (
+    before?.status === "playing" &&
+    before.member_id &&
+    (Number(before.hour_bank_used_min) || 0) > 0 &&
+    (before.end_time_ms ?? 0) - Date.now() >= 60_000
+  ) {
+    bankReturned = await saveHourBank(reservationId).catch((e) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      // เก็บไปแล้วก่อนหน้า = ไม่ต้องคืนซ้ำ ยกเลิกต่อได้
+      if (msg.includes("เก็บชั่วโมงไปแล้ว")) return null;
+      throw new Error("คืนชั่วโมงสะสมไม่สำเร็จ จึงยังไม่ยกเลิกบิล: " + msg);
+    });
+  }
+
   const { cancelSalesForBill } = await import("./products");
   await cancelSalesForBill({ reservationId }).catch((e) =>
     console.warn("[cancel] product sales:", e),
@@ -214,4 +271,5 @@ export async function cancelReservation(machineId: string, reservationId: string
       }),
     );
   }
+  return { bankReturned };
 }

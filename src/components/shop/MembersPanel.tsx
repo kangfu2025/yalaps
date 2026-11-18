@@ -32,6 +32,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { RankingProfileEditor } from "./RankingPanel";
+import { HourBankCard } from "./HourBankCard";
 import { RankAvatar } from "./RankingBoard";
 import {
   showJoinScreen,
@@ -443,6 +444,7 @@ function MemberDetail({
             </div>
 
             <div className="col-md-7">
+              <HourBankCard memberId={member.id} />
               <div className="fw-bold mb-2 d-flex align-items-center gap-1">
                 <History size={16} /> ประวัติแต้ม
               </div>

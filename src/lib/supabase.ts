@@ -90,6 +90,15 @@ export interface Reservation {
   points_discount?: number;
   /** แต้มที่หักไปกับบิลนี้ */
   points_spent?: number;
+  /** แพ็กเกจราคา (package_hourbank_migration.sql) — null = คิดรายชั่วโมงตามเดิม */
+  package_id?: string | null;
+  package_name?: string | null;
+  /** ราคาค่าเครื่องส่วนแพ็กเกจที่ตกลงตอนเปิด (ไม่รวมเวลาต่อเพิ่ม) · 0 = เปิดด้วยชั่วโมงสะสม */
+  package_price?: number | null;
+  package_minutes?: number | null;
+  /** นาทีที่ดึงจากชั่วโมงสะสมมาเปิดบิลนี้ */
+  hour_bank_used_min?: number;
+  hour_bank_expires_at?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -15,8 +15,20 @@ import {
   type PointsConfig,
 } from "@/lib/members";
 import { freeHourValue } from "@/lib/billing";
-import { Gift } from "lucide-react";
+import { Gift, Package, PiggyBank, Clock } from "lucide-react";
 import { useShop } from "@/hooks/useShop";
+import {
+  listOpenPackages,
+  getHourBank,
+  fmtMinutes,
+  fmtThaiDate,
+  minutesToHours,
+  type PricePackage,
+  type HourBankBalance,
+} from "@/lib/packages";
+
+/** รายชั่วโมงแบบเดิม / แพ็กเกจราคา / ใช้ชั่วโมงสะสมของสมาชิก (สองแบบหลังเฉพาะโซฟา) */
+type PriceMode = "hourly" | "package" | "bank";
 
 function payModeToMethod(m: "cash" | "transfer" | "mixed" | "credit"): PaymentMethod {
   return m === "transfer" ? "promptpay" : m;
@@ -45,6 +57,60 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
   const [nameFromMember, setNameFromMember] = useState(false);
   const [autoStarting, setAutoStarting] = useState(false);
   const [useFreeHour, setUseFreeHour] = useState(false);
+  const [mode, setMode] = useState<PriceMode>("hourly");
+  const [packages, setPackages] = useState<PricePackage[]>([]);
+  const [pkgId, setPkgId] = useState<string | null>(null);
+  const [bank, setBank] = useState<HourBankBalance | null>(null);
+  const [bankMin, setBankMin] = useState<number>(0);
+
+  const isSofa = machine?.zone === "sofa";
+
+  // แพ็กเกจที่เปิดขายวันนี้ (ยังไม่ได้รัน SQL = ได้รายการว่าง แท็บแพ็กเกจไม่ขึ้น)
+  useEffect(() => {
+    if (!machine || machine.zone !== "sofa") {
+      setPackages([]);
+      return;
+    }
+    let alive = true;
+    listOpenPackages().then((list) => {
+      if (alive) setPackages(list);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [machine]);
+
+  // ชั่วโมงสะสมของสมาชิกที่เลือก
+  const memberId = member?.id ?? null;
+  useEffect(() => {
+    setBank(null);
+    if (!memberId || !isSofa) return;
+    let alive = true;
+    getHourBank(memberId)
+      .then((b) => {
+        if (!alive) return;
+        setBank(b);
+        // ค่าเริ่มต้น: ใช้ทั้งหมดถ้าไม่เกิน 3 ชม. ไม่งั้น 1 ชม.
+        if (b && b.minutes > 0) setBankMin(b.minutes <= 180 ? b.minutes : 60);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [memberId, isSofa]);
+
+  // โหมดที่เลือกใช้ไม่ได้แล้ว (ถอดสมาชิก / ชั่วโมงหมด / ไม่มีแพ็กเกจ) -> กลับรายชั่วโมง
+  const bankAvail = bank?.minutes ?? 0;
+  useEffect(() => {
+    if (mode === "bank" && bankAvail <= 0) setMode("hourly");
+    if (mode === "package" && packages.length === 0) setMode("hourly");
+  }, [mode, bankAvail, packages.length]);
+
+  const pkg = mode === "package" ? (packages.find((p) => p.id === pkgId) ?? null) : null;
+  const bankUse = mode === "bank" ? Math.min(Math.max(0, bankMin), bankAvail) : 0;
+  /** นาทีเล่นจริงของบิลนี้ */
+  const playMinutes = pkg ? pkg.minutes : mode === "bank" ? bankUse : hours * 60;
+  const playHours = playMinutes / 60;
 
   useEffect(() => {
     getPointsConfig()
@@ -78,18 +144,32 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
   }
 
   const override = machine && promotion ? getZonePrice(machine.zone, promotion) : null;
-  const fullPrice = machine ? calcPrice(machine.zone, hours, override) : 0;
+  const fullPrice = !machine
+    ? 0
+    : mode === "package"
+      ? (pkg?.price ?? 0)
+      : mode === "bank"
+        ? 0
+        : calcPrice(machine.zone, hours, override);
 
   // แลกแต้มได้ก็ต่อเมื่อ: เป็นสมาชิก + โซนนี้แลกได้ + แต้มถึงจริง ๆ
   // เงื่อนไขสุดท้ายคือจุดที่เคยขาด ทำให้สมาชิกแต้มไม่พอกดแลกได้
   const zoneRedeemable = machine ? canRedeemZone(machine.zone, cfg) : false;
-  const canRedeem = !!member && zoneRedeemable && member.points >= cfg.redeem_cost;
+  const canRedeem =
+    mode === "hourly" && !!member && zoneRedeemable && member.points >= cfg.redeem_cost;
   const redeemActive = useFreeHour && canRedeem;
   // ส่วนลดหักได้ไม่เกินค่าบริการ (เล่น 1 ชม. แล้วแลกฟรี 1 ชม. = จ่าย 0 ไม่ใช่ติดลบ)
   const redeemValue = machine ? Math.min(freeHourValue(machine.zone, promotion), fullPrice) : 0;
   const price = Math.max(0, fullPrice - (redeemActive ? redeemValue : 0));
 
-  const qrAmount = payMode === "transfer" ? price : payMode === "mixed" ? Number(transfer) || 0 : 0;
+  const qrAmount =
+    mode === "bank"
+      ? 0
+      : payMode === "transfer"
+        ? price
+        : payMode === "mixed"
+          ? Number(transfer) || 0
+          : 0;
 
   useEffect(() => {
     if (!machine) return;
@@ -101,12 +181,14 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
     setMember(null);
     setNameFromMember(false);
     setUseFreeHour(false);
+    setMode("hourly");
+    setPkgId(null);
   }, [machine]);
 
   useEffect(() => {
     if (!machine) return;
     const now = new Date();
-    const end = new Date(now.getTime() + hours * 3600_000);
+    const end = new Date(now.getTime() + playMinutes * 60_000);
     pushDisplay({
       kind: "start",
       zone: machine.zone,
@@ -114,17 +196,21 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
       customer_name: name,
       start_time: toHHMM(now),
       end_time: toHHMM(end),
-      play_hours: hours,
+      play_hours: Math.round(playHours * 10) / 10,
       food_amount: 0,
       amount: price,
       charge_type: "start",
       payment_method: payModeToMethod(payMode),
       message:
-        payMode === "credit"
-          ? `เปิดเครื่อง ${hours} ชม. (ค้างจ่าย)`
-          : redeemActive
-            ? `เปิดเครื่อง ${hours} ชม. · แลกแต้มฟรี 1 ชม.`
-            : `เปิดเครื่อง ${hours} ชม.`,
+        mode === "bank"
+          ? `ใช้ชั่วโมงสะสม ${fmtMinutes(bankUse)}`
+          : pkg
+            ? `แพ็กเกจ ${pkg.group_name} · ${pkg.label}${payMode === "credit" ? " (ค้างจ่าย)" : ""}`
+            : payMode === "credit"
+              ? `เปิดเครื่อง ${hours} ชม. (ค้างจ่าย)`
+              : redeemActive
+                ? `เปิดเครื่อง ${hours} ชม. · แลกแต้มฟรี 1 ชม.`
+                : `เปิดเครื่อง ${hours} ชม.`,
       // ไม่ส่ง member ตอนไม่ใช่สมาชิก เพื่อให้จอกลับไปโหมดปกติทันทีที่ถอดสมาชิกออก
       member: member
         ? {
@@ -132,20 +218,44 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
             // หักแต้มที่กำลังจะใช้แลกออกให้เห็นยอดจริงที่จะเหลือ
             points: Math.max(0, member.points - (redeemActive ? cfg.redeem_cost : 0)),
             visits: member.visits,
-            will_earn: pointsForPlay(machine.zone, { hours }, cfg),
+            will_earn: mode === "bank" ? 0 : pointsForPlay(machine.zone, { hours: playHours }, cfg),
             redeem_cost: cfg.redeem_cost,
             redeeming: redeemActive,
             zone_redeemable: zoneRedeemable,
           }
         : undefined,
     });
-  }, [machine, name, hours, payMode, qrAmount, price, redeemActive, member, cfg, zoneRedeemable]);
+  }, [
+    machine,
+    name,
+    hours,
+    payMode,
+    qrAmount,
+    price,
+    redeemActive,
+    member,
+    cfg,
+    zoneRedeemable,
+    mode,
+    pkg,
+    bankUse,
+    playMinutes,
+    playHours,
+  ]);
 
   if (!machine) return null;
 
   async function handleSubmit(e?: React.FormEvent, opts: { keepDisplay?: boolean } = {}) {
     e?.preventDefault();
     if (!machine || busy) return;
+    if (mode === "package" && !pkg) {
+      alert("เลือกแพ็กเกจก่อน");
+      return;
+    }
+    if (mode === "bank" && bankUse < 1) {
+      alert("เลือกจำนวนชั่วโมงสะสมที่จะใช้");
+      return;
+    }
     setBusy(true);
     try {
       let finalCash = Number(cash) || 0;
@@ -160,12 +270,16 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
         finalCash = 0;
         finalTransfer = 0;
       }
+      if (mode === "bank") {
+        finalCash = 0;
+        finalTransfer = 0;
+      }
       await startSession({
         machineId: machine.id,
         zone: machine.zone,
         machineNumber: machine.machine_number,
         customerName: name.trim(),
-        baseHours: hours,
+        baseHours: mode === "hourly" ? hours : minutesToHours(playMinutes),
         advanceCash: finalCash,
         advanceTransfer: finalTransfer,
         memberId: member?.id ?? null,
@@ -173,6 +287,8 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
         // และยังไม่มีบิลถูกสร้าง พนักงานเก็บเงินเต็มแล้วเปิดใหม่ได้เลย
         useFreeHour: redeemActive,
         freeHourValue: redeemValue,
+        pkg: pkg ? { id: pkg.id, minutes: pkg.minutes } : null,
+        hourBankMinutes: mode === "bank" ? bankUse : 0,
       });
       // เปิดอัตโนมัติหลังตรวจสลิป: ปล่อยให้จอลูกค้าโชว์ "ชำระเงินเรียบร้อย" ต่อจนครบเวลา
       if (!opts.keepDisplay) await clearDisplay();
@@ -218,15 +334,23 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
               <>
                 <div className="small mt-1 d-flex flex-wrap gap-2 align-items-center">
                   <span className="text-success">
-                    บิลนี้จะได้ <b>{pointsForPlay(machine.zone, { hours }, cfg)}</b> แต้ม
-                    เมื่อปิดบิล
+                    บิลนี้จะได้{" "}
+                    <b>
+                      {mode === "bank" ? 0 : pointsForPlay(machine.zone, { hours: playHours }, cfg)}
+                    </b>{" "}
+                    แต้ม เมื่อปิดบิล
                   </span>
                   <span className="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
                     แต้มคงเหลือ {member.points}
                   </span>
+                  {bankAvail > 0 && (
+                    <span className="badge bg-info-subtle text-info-emphasis border border-info-subtle">
+                      <PiggyBank size={11} className="yl-ic" /> ชั่วโมงสะสม {fmtMinutes(bankAvail)}
+                    </span>
+                  )}
                 </div>
 
-                {zoneRedeemable ? (
+                {mode !== "hourly" ? null : zoneRedeemable ? (
                   <div className="form-check mt-2">
                     <input
                       className="form-check-input"
@@ -280,7 +404,95 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
             )}
           </div>
 
-          <div className="mb-3">
+          {isSofa && (packages.length > 0 || bankAvail > 0) && (
+            <div className="yl-pmode mb-3" role="tablist" aria-label="รูปแบบราคา">
+              <button
+                type="button"
+                className={mode === "hourly" ? "is-on" : ""}
+                onClick={() => setMode("hourly")}
+              >
+                <Clock size={15} /> รายชั่วโมง
+              </button>
+              {packages.length > 0 && (
+                <button
+                  type="button"
+                  className={mode === "package" ? "is-on" : ""}
+                  onClick={() => {
+                    setMode("package");
+                    setUseFreeHour(false);
+                    if (!pkgId) setPkgId(packages[0].id);
+                  }}
+                >
+                  <Package size={15} /> แพ็กเกจ
+                </button>
+              )}
+              {bankAvail > 0 && (
+                <button
+                  type="button"
+                  className={mode === "bank" ? "is-on" : ""}
+                  onClick={() => {
+                    setMode("bank");
+                    setUseFreeHour(false);
+                  }}
+                >
+                  <PiggyBank size={15} /> ชั่วโมงสะสม
+                </button>
+              )}
+            </div>
+          )}
+
+          {mode === "package" && (
+            <div className="mb-3">
+              <label className="form-label fw-bold">🎮 เลือกแพ็กเกจ</label>
+              <div className="yl-pkg-grid">
+                {packages.map((p) => (
+                  <button
+                    type="button"
+                    key={p.id}
+                    className={`yl-pkg-opt ${p.id === pkgId ? "is-on" : ""}`}
+                    onClick={() => setPkgId(p.id)}
+                  >
+                    <span className="yl-pkg-group">{p.group_name}</span>
+                    <span className="yl-pkg-label">{p.label}</span>
+                    <span className="yl-pkg-price">{formatBaht(p.price)} บ.</span>
+                    <span className="yl-pkg-min">เล่นได้ {fmtMinutes(p.minutes)}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="text-center mt-2">
+                💰 ค่าแพ็กเกจ: <b className="text-danger">{formatBaht(price)}</b> บาท
+                <div className="small text-muted mt-1">
+                  เล่นไม่หมด เก็บเวลาที่เหลือเข้าบัญชีสมาชิกได้ตอนเช็คบิล (ใช้ได้ 30 วัน)
+                  {!member && " — ต้องผูกเบอร์สมาชิก"}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {mode === "bank" && bank && (
+            <div className="mb-3">
+              <label className="form-label fw-bold">⏳ ใช้ชั่วโมงสะสม</label>
+              <select
+                className="form-select form-select-lg"
+                value={bankUse}
+                onChange={(e) => setBankMin(Number(e.target.value))}
+              >
+                {bankOptions(bankAvail).map((m) => (
+                  <option key={m} value={m}>
+                    {fmtMinutes(m)}
+                    {m === bankAvail ? " (ใช้ทั้งหมด)" : ""}
+                  </option>
+                ))}
+              </select>
+              <div className="small text-muted mt-1">
+                มีอยู่ {fmtMinutes(bankAvail)}
+                {bank.next_expiry && <> · ก้อนแรกหมดอายุ {fmtThaiDate(bank.next_expiry)}</>} ·
+                ไม่เสียเงิน · ไม่ได้แต้มเพิ่ม (ได้ไปแล้วตอนซื้อแพ็กเกจ)
+              </div>
+            </div>
+          )}
+
+          <div className="mb-3" hidden={mode !== "hourly"}>
             <label className="form-label fw-bold">⏱️ เวลาเล่น</label>
             <select
               className="form-select form-select-lg"
@@ -313,12 +525,18 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
             </div>
           </div>
 
-          <div className="mb-3">
-            <label className="form-label fw-bold">💳 ช่องทางชำระมัดจำ</label>
-            <PayModeRadio value={payMode} onChange={setPayMode} />
-          </div>
+          {mode === "bank" ? (
+            <div className="alert alert-info py-2 small">
+              ⏳ เปิดด้วยชั่วโมงสะสม — ไม่ต้องเก็บเงิน (ต่อเวลาเพิ่มคิดราคาปกติ)
+            </div>
+          ) : (
+            <div className="mb-3">
+              <label className="form-label fw-bold">💳 ช่องทางชำระมัดจำ</label>
+              <PayModeRadio value={payMode} onChange={setPayMode} />
+            </div>
+          )}
 
-          {payMode === "mixed" && (
+          {mode !== "bank" && payMode === "mixed" && (
             <div className="row g-2 mb-3">
               <div className="col-6">
                 <label className="small text-success fw-bold">💵 เงินสด (บาท)</label>
@@ -343,7 +561,7 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
             </div>
           )}
 
-          {payMode === "credit" && (
+          {mode !== "bank" && payMode === "credit" && (
             <div className="alert alert-warning py-2 small">
               📝 ลูกค้าค้างจ่าย — ระบบจะเปิดเครื่องโดยไม่หักยอดมัดจำ
             </div>
@@ -404,4 +622,12 @@ function PayModeRadio({ value, onChange }: { value: PayMode; onChange: (v: PayMo
       ))}
     </div>
   );
+}
+
+/** ตัวเลือกนาทีที่ใช้ได้: ทีละ 30 นาที + ใช้ทั้งหมด (ยอดจริงที่อาจเป็นเศษนาที) */
+function bankOptions(avail: number): number[] {
+  const out: number[] = [];
+  for (let m = 30; m < avail; m += 30) out.push(m);
+  if (avail > 0) out.push(avail);
+  return out;
 }

@@ -155,7 +155,7 @@ const JOIN_CSS = `
   min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:18px;padding:24px 16px;
   background:radial-gradient(120% 90% at 50% 0%, #16233d 0%, #0b0f17 62%);
-  font-family:'Prompt',system-ui,sans-serif;color:#e2e8f0;
+  font-family:'Anuphan','Noto Sans Thai',system-ui,sans-serif;color:#e2e8f0;
 }
 .join-card{
   width:100%;max-width:420px;background:#111826;border:1px solid #24314a;border-radius:20px;
@@ -195,7 +195,7 @@ const JOIN_CSS = `
 .join-result.exists svg{color:#38bdf8}
 .join-result h2{margin:10px 0 2px;font-size:1.25rem;font-weight:700;color:#f8fafc}
 .join-result-name{margin:0;font-size:1.5rem;font-weight:700;color:#22d3ee}
-.join-result-phone{margin:0;font-size:1rem;color:#94a3b8;font-family:'JetBrains Mono',monospace}
+.join-result-phone{margin:0;font-size:1rem;color:#94a3b8;font-family:inherit;font-variant-numeric:tabular-nums}
 .join-points{margin-top:12px;padding:10px 18px;border-radius:999px;
   background:#1a2438;border:1px solid #2a3552;color:#fbbf24;font-size:.95rem}
 .join-points b{font-size:1.2rem;color:#fde047}

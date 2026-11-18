@@ -1,6 +1,6 @@
 import { supabase, type Reservation, type Zone } from "./supabase";
 import { resetMachineToIdle } from "./machines";
-import { calcPrice } from "./priceEngine";
+import { calcPrice, type PriceOverride } from "./priceEngine";
 import { getZonePrice, type Promotion } from "./promotions";
 import { awardPoints, redeemFreeHour, getMember, type Member } from "./members";
 import { notifyLine } from "./lineNotify";
@@ -43,6 +43,33 @@ export function freeHourValue(zone: Zone, promotion?: Promotion | null): number 
   return p ? Number(p.hour) : calcPrice(zone, 1, null);
 }
 
+/** บิลนี้คิดราคาแบบแพ็กเกจ (หรือเปิดด้วยชั่วโมงสะสม) ไหม */
+export function isPackageBill(r: Pick<Reservation, "package_price">): boolean {
+  return r.package_price !== null && r.package_price !== undefined;
+}
+
+/**
+ * ค่าเครื่องของบิล — ใช้ที่เดียวทั้งการ์ดเครื่องและตอนปิดบิล
+ *  - บิลปกติ: คิดรายชั่วโมงจากเวลารวมเหมือนเดิม
+ *  - บิลแพ็กเกจ: ราคาแพ็กเกจที่ตกลงตอนเปิด + เวลาต่อเพิ่มคิดรายชั่วโมง
+ *    (เปิดด้วยชั่วโมงสะสม package_price = 0 จ่ายเฉพาะเวลาต่อเพิ่ม)
+ */
+export function machinePriceOf(
+  r: Pick<Reservation, "zone" | "total_hours" | "extended_hours" | "package_price">,
+  override?: PriceOverride | null,
+): number {
+  if (isPackageBill(r)) {
+    return Number(r.package_price) + calcPrice(r.zone, Number(r.extended_hours), override ?? null);
+  }
+  return calcPrice(r.zone, Number(r.total_hours), override ?? null);
+}
+
+/** ชั่วโมงที่ได้แต้ม — เวลาที่ดึงจากชั่วโมงสะสมได้แต้มไปแล้วตอนซื้อแพ็กเกจ จึงไม่ให้ซ้ำ */
+export function pointsHoursOf(r: Pick<Reservation, "total_hours" | "hour_bank_used_min">): number {
+  const used = (Number(r.hour_bank_used_min) || 0) / 60;
+  return Math.max(0, Math.round((Number(r.total_hours) - used) * 10) / 10);
+}
+
 export function summarizeCheckout(
   r: Reservation,
   promotion?: Promotion | null,
@@ -50,7 +77,7 @@ export function summarizeCheckout(
 ): CheckoutSummary {
   const duration = Number(r.total_hours);
   const override = promotion ? getZonePrice(r.zone, promotion) : null;
-  const machinePrice = calcPrice(r.zone, duration, override);
+  const machinePrice = machinePriceOf(r, override);
   const foodPrice = Number(r.food_revenue);
   const advCash = Number(r.advance_cash);
   const advTransfer = Number(r.advance_transfer);
@@ -104,7 +131,7 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
       pointsEarned = await awardPoints({
         memberId,
         zone: r.zone,
-        hours: s.duration_hours,
+        hours: pointsHoursOf(r),
         reservationId: r.id,
       });
     } catch (e) {
@@ -130,6 +157,10 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     member_id: memberId,
     points_earned: pointsEarned,
     points_discount: s.points_discount,
+    // ใส่เฉพาะบิลแพ็กเกจ — ร้านที่ยังไม่ได้รัน SQL แพ็กเกจจะปิดบิลปกติได้เหมือนเดิม
+    ...(isPackageBill(r)
+      ? { package_name: r.package_name ?? null, hour_bank_used_min: r.hour_bank_used_min ?? 0 }
+      : {}),
   });
   if (logErr) throw logErr;
 

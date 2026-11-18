@@ -10,11 +10,11 @@ import {
   User,
   Timer,
   Play,
-  StopCircle,
   XCircle,
   Wifi,
   WifiOff,
   Plus,
+  Receipt,
 } from "lucide-react";
 
 const CMD_LABEL: Record<string, string> = {
@@ -26,7 +26,6 @@ const CMD_LABEL: Record<string, string> = {
   end_session: "จบ session",
 };
 import {
-  supabase,
   type Machine,
   type PcAgent,
   type PcCommand,
@@ -35,8 +34,6 @@ import {
 } from "@/lib/supabase";
 import {
   sendPcCommand,
-  listAgents,
-  listRecentPcCommands,
   isAgentOnline,
   startPcSession,
   extendPcSession,
@@ -46,6 +43,18 @@ import {
   setPcSessionMember,
 } from "@/lib/pcControl";
 import { useAuth } from "@/lib/auth";
+import type { PcZoneData } from "@/hooks/usePcZone";
+import {
+  fmtClock,
+  fmtHHMM,
+  machineNo,
+  matchesFilter,
+  stateFromRemaining,
+  type MachineState,
+  type MachineStatusInfo,
+  type StatusFilter,
+} from "@/lib/dashStatus";
+import { fmtMinutes } from "@/lib/packages";
 import { formatBaht } from "@/lib/priceEngine";
 import { MemberSearch } from "./MemberSearch";
 import {
@@ -120,15 +129,53 @@ function fmtAgo(iso: string | null | undefined): string {
 
 interface Props {
   machines: Machine[];
+  data: PcZoneData;
+  /** ตัวกรองจากแถบด้านบนแดชบอร์ด */
+  filter?: StatusFilter;
 }
 
-export function PcZonePanel({ machines }: Props) {
+/** บิล PC แถมฟรีแบบข้อมูลเก่า: ราคาเต็มแต่ไม่ได้เก็บเงิน — ดู EndPcModal */
+function isLegacyFree(s: PcSession): boolean {
+  const paid = Number(s.paid_cash ?? 0) + Number(s.paid_transfer ?? 0);
+  return (
+    !!s.redeemed_points &&
+    paid === 0 &&
+    Date.parse(s.started_at ?? s.created_at ?? "") < LEGACY_FREE_BEFORE
+  );
+}
+
+/** สถานะเครื่อง PC สำหรับการ์ดและตัวกรอง — คิดแบบเดียวกับที่หน้าเช็คบิลคิด */
+export function pcStatusOf(
+  session: PcSession | undefined,
+  agent: PcAgent | undefined,
+  now = Date.now(),
+): MachineStatusInfo {
+  if (!session) return { state: isAgentOnline(agent) ? "idle" : "offline", credit: false };
+  const remain = new Date(session.ends_at).getTime() - now;
+  const paid = Number(session.paid_cash ?? 0) + Number(session.paid_transfer ?? 0);
+  const due = isLegacyFree(session)
+    ? 0
+    : Number(session.price ?? 0) + Number(session.food_amount ?? 0);
+  return { state: stateFromRemaining(remain), credit: due - paid > 0.5 };
+}
+
+const STATE_LABEL: Record<MachineState, string> = {
+  idle: "ว่าง",
+  play: "กำลังเล่น",
+  warn: "ใกล้หมด",
+  over: "เกินเวลา",
+  offline: "ออฟไลน์",
+};
+
+/**
+ * โซน PC บนแดชบอร์ด — การ์ดแบบเดียวกับโซฟา/รถแข่ง + เครื่องมือควบคุม PC (แอดมิน)
+ * ข้อมูลมาจาก usePcZone() ที่แดชบอร์ดโหลดไว้ (ใช้นับสถานะรวมด้วย)
+ */
+export function PcZonePanel({ machines, data, filter = "all" }: Props) {
   const { role } = useAuth();
-  const { guardStart } = useShop();
+  const { guardStart, notify } = useShop();
   const isAdmin = role === "admin";
-  const [agents, setAgents] = useState<PcAgent[]>([]);
-  const [sessions, setSessions] = useState<PcSession[]>([]);
-  const [commands, setCommands] = useState<PcCommand[]>([]);
+  const { agents, sessions, commands, reload } = data;
   const [startTarget, setStartTarget] = useState<Machine | null>(null);
   const [extendTarget, setExtendTarget] = useState<{ m: Machine; s: PcSession } | null>(null);
   const [endTarget, setEndTarget] = useState<{ m: Machine; s: PcSession } | null>(null);
@@ -139,39 +186,35 @@ export function PcZonePanel({ machines }: Props) {
   );
   const [, setNow] = useState(Date.now());
 
-  async function load() {
-    const [a, s, c] = await Promise.all([
-      listAgents(),
-      supabase.from("pc_sessions").select("*").eq("status", "playing"),
-      listRecentPcCommands(20).catch(() => [] as PcCommand[]),
-    ]);
-    setAgents(a);
-    setSessions((s.data ?? []) as PcSession[]);
-    setCommands(c);
-  }
-
   useEffect(() => {
-    load();
-    const ch = supabase
-      .channel("pc-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "pc_agents" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "pc_sessions" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "pc_commands" }, () => load())
-      .subscribe();
     const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => {
-      supabase.removeChannel(ch);
-      clearInterval(t);
-    };
+    return () => clearInterval(t);
   }, []);
 
   async function runCommand(target: Machine | null, type: PcCommandType) {
     try {
       const list = target ? [target] : machines;
       await Promise.all(list.map((mm) => sendPcCommand(mm.id, type)));
-      await load();
+      await reload();
     } catch (e) {
       alert("ส่งคำสั่งไม่สำเร็จ: " + (e instanceof Error ? e.message : String(e)));
+    }
+  }
+
+  async function warn5(m: Machine) {
+    try {
+      await sendPcCommand(m.id, "warn", { minutes: 5 });
+      notify({
+        kind: "info",
+        title: `ส่งเตือน 5 นาทีไปที่ PC ${machineNo(m.machine_number)} แล้ว`,
+        text: "ลูกค้าจะเห็นข้อความเตือนบนจอ",
+      });
+    } catch (e) {
+      notify({
+        kind: "warning",
+        title: "ส่งเตือนไม่สำเร็จ",
+        text: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 
@@ -183,251 +226,291 @@ export function PcZonePanel({ machines }: Props) {
     );
   }
 
+  const now = Date.now();
+  const cards = machines
+    .map((m) => {
+      const agent = agents.find((a) => a.machine_id === m.id);
+      const session = sessions.find((x) => x.machine_id === m.id);
+      return { m, agent, session, info: pcStatusOf(session, agent, now) };
+    })
+    .filter((c) => matchesFilter(c.info, filter));
+
   return (
     <>
-      <div className="alert alert-secondary py-2 small">
-        <b>🖥️ โซน PC:</b> เลือกเวลาที่ลูกค้าต้องการเล่น แล้วกด "เริ่ม" — Agent บนเครื่อง PC
-        จะปลดล็อกอัตโนมัติ เมื่อครบเวลาจะกลับสู่หน้าจอ YALA PLAYSTATION โดยอัตโนมัติ
-      </div>
-
-      <div className="pcz-grid">
-        {machines.map((m) => {
-          const agent = agents.find((a) => a.machine_id === m.id);
-          const online = isAgentOnline(agent);
-          const session = sessions.find((s) => s.machine_id === m.id);
-          const remainMs = session ? new Date(session.ends_at).getTime() - Date.now() : 0;
-          const overdue = !!session && remainMs <= 0;
-          const totalMs = session ? Math.max(1, (session.minutes_purchased || 0) * 60000) : 1;
-          const pct = session ? Math.max(0, Math.min(100, (remainMs / totalMs) * 100)) : 0;
-          return (
-            <div
-              key={m.id}
-              className={`pcz-card ${session ? (overdue ? "is-overdue" : "is-active") : ""}`}
-            >
-              <div className="pcz-head">
-                <div className="d-flex align-items-center gap-2">
-                  <span className="pcz-title">PC-{String(m.machine_number).padStart(2, "0")}</span>
-                  <span
-                    className={`pcz-pill ${online ? "pcz-pill-on" : "pcz-pill-off"}`}
-                    title={
-                      agent
-                        ? `Agent v${agent.agent_version ?? "?"} · heartbeat ${fmtAgo(agent.last_heartbeat)}`
-                        : "ยังไม่เคยเชื่อมต่อ — ตรวจว่า Agent ติดตั้ง/รันอยู่หรือไม่"
-                    }
-                  >
-                    <span className={`pcz-dot ${online ? "live" : ""}`} />
-                    {online ? "Online" : "Offline"}
+      {cards.length === 0 ? (
+        <div className="dm-none">ไม่มีเครื่อง PC ตามตัวกรองนี้</div>
+      ) : (
+        <div className="dm-grid">
+          {cards.map(({ m, agent, session, info }) => {
+            const online = isAgentOnline(agent);
+            const st = info.state;
+            const remainMs = session ? new Date(session.ends_at).getTime() - now : 0;
+            const startMs = session
+              ? new Date(session.started_at ?? session.created_at).getTime()
+              : 0;
+            const endMs = session ? new Date(session.ends_at).getTime() : 0;
+            const used = session
+              ? Math.min(100, Math.max(0, ((now - startMs) / Math.max(1, endMs - startMs)) * 100))
+              : 0;
+            const free = session
+              ? isLegacyFree(session) ||
+                (!!session.redeemed_points && Number(session.price ?? 0) === 0)
+              : false;
+            const agentChip = (
+              <span
+                className={`dm-agent ${online ? "" : "is-off"}`}
+                title={
+                  agent
+                    ? `Agent v${agent.agent_version ?? "?"} · heartbeat ${fmtAgo(agent.last_heartbeat)}`
+                    : "ยังไม่เคยเชื่อมต่อ — ตรวจว่า Agent ติดตั้ง/รันอยู่หรือไม่"
+                }
+              >
+                <i aria-hidden />
+                {online ? "Agent ออนไลน์" : `Agent ออฟไลน์ · ${fmtAgo(agent?.last_heartbeat)}`}
+              </span>
+            );
+            return (
+              <article key={m.id} className={`dm-card is-${st}`}>
+                <header className="dm-head">
+                  <div className="dm-id">
+                    <span className="dm-no">{machineNo(m.machine_number)}</span>
+                    <span className="dm-zone">PC</span>
+                  </div>
+                  <span className={`dm-state is-${st}`}>
+                    <i aria-hidden />
+                    {STATE_LABEL[st]}
                   </span>
-                </div>
-                <div className="pcz-icon-chip">
-                  {session ? <Monitor size={15} /> : <Lock size={15} />}
-                </div>
-              </div>
+                </header>
 
-              {session ? (
-                <>
-                  <div className="d-flex justify-content-between align-items-end gap-2">
-                    <div style={{ minWidth: 0 }}>
-                      <div className="pcz-meta-label">ลูกค้า</div>
-                      <div className="pcz-meta-value text-truncate">
+                {session ? (
+                  <>
+                    <div className="dm-who">
+                      <b title={session.customer_name ?? undefined}>
                         {session.customer_name || `ลูกค้า PC ${m.machine_number}`}
-                      </div>
-                      <div className="pcz-meta-label mt-1" style={{ letterSpacing: ".04em" }}>
-                        {session.minutes_purchased} นาที ·{" "}
-                        {session.redeemed_points &&
-                        Number(session.paid_cash ?? 0) + Number(session.paid_transfer ?? 0) === 0
-                          ? "🎁 แถมฟรี"
-                          : `${formatBaht(session.price)} บาท`}
+                      </b>
+                      {agentChip}
+                    </div>
+                    <div className="dm-clock">
+                      <span className="dm-time">{fmtClock(remainMs)}</span>
+                      <span className="dm-until">
+                        {remainMs < 0 ? "เกินมา" : "เหลือ"} · ครบ {fmtHHMM(endMs)}
+                      </span>
+                      <div className="dm-prog" aria-hidden>
+                        <i style={{ width: `${used}%` }} />
                       </div>
                     </div>
-                    <div className="text-end">
-                      <div className={`pcz-pill ${overdue ? "pcz-pill-late" : "pcz-pill-busy"}`}>
-                        {overdue ? "หมดเวลา" : "กำลังใช้งาน"}
+                    <div className="dm-meta">
+                      <div>
+                        เวลาที่ซื้อ<b>{fmtMinutes(session.minutes_purchased || 0)}</b>
                       </div>
-                      <div className={`pcz-timer mt-1 ${overdue ? "is-overdue" : ""}`}>
-                        {fmtRemaining(remainMs)}
+                      <div className={info.credit ? "is-due" : ""}>
+                        {info.credit ? "ค้างจ่าย" : "ยอด"}
+                        <b>
+                          {free
+                            ? "แถมฟรี"
+                            : info.credit
+                              ? `${formatBaht(
+                                  Number(session.price ?? 0) +
+                                    Number(session.food_amount ?? 0) -
+                                    Number(session.paid_cash ?? 0) -
+                                    Number(session.paid_transfer ?? 0),
+                                )} บ.`
+                              : "ชำระแล้ว"}
+                        </b>
                       </div>
                     </div>
-                  </div>
-
-                  <div className={`pcz-bar ${overdue ? "is-overdue" : ""}`}>
-                    <i style={{ width: `${pct}%` }} />
-                  </div>
-
-                  <div className="pcz-actions">
-                    <button
-                      className="pcz-btn pcz-btn-cyan"
-                      onClick={() => setExtendTarget({ m, s: session })}
-                    >
-                      <Plus size={14} /> เพิ่มเวลา
-                    </button>
-                    <button
-                      className="pcz-btn pcz-btn-amber"
-                      onClick={() => sendPcCommand(m.id, "warn", { minutes: 5 })}
-                    >
-                      <AlertTriangle size={14} /> เตือน 5 นาที
-                    </button>
-                    <button
-                      className="pcz-btn pcz-btn-red pcz-wide"
-                      onClick={() => setEndTarget({ m, s: session })}
-                    >
-                      <StopCircle size={14} /> ปิดเครื่อง / เช็คบิล
-                    </button>
-                    <button
-                      className="pcz-btn pcz-wide"
-                      onClick={() => setCancelTarget({ m, s: session })}
-                    >
-                      <XCircle size={14} /> ยกเลิกบิล
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="pcz-idle">
-                    <Lock size={22} style={{ opacity: 0.4 }} />
-                    ล็อกอยู่ — กด "เริ่มเปิดเครื่อง" เพื่อเปิดให้ลูกค้า
-                  </div>
-                  <div className="pcz-actions">
-                    <button
-                      className="pcz-btn pcz-btn-solid pcz-wide"
-                      onClick={() => {
-                        if (guardStart()) setStartTarget(m);
-                      }}
-                    >
-                      <Play size={15} /> เริ่มเปิดเครื่อง
-                    </button>
-                    {isAdmin && (
-                      <>
+                    <div className="dm-actions">
+                      <button
+                        type="button"
+                        className="dm-primary"
+                        onClick={() => setEndTarget({ m, s: session })}
+                      >
+                        <Receipt size={16} />
+                        {st === "over" ? "ปิดเครื่อง / เช็คบิลเลย" : "ปิดเครื่อง / เช็คบิล"}
+                      </button>
+                      <div className="dm-row2">
                         <button
-                          className="pcz-btn pcz-btn-amber"
-                          onClick={() => setLockTarget(m)}
-                          disabled={!online}
-                          title={online ? "สั่งล็อกหน้าจอเครื่อง PC นี้" : "Agent ออฟไลน์"}
+                          type="button"
+                          className="dm-sec"
+                          onClick={() => setExtendTarget({ m, s: session })}
                         >
-                          <Lock size={13} /> ล็อกเครื่อง
+                          <Plus size={15} /> เพิ่มเวลา
                         </button>
                         <button
-                          className="pcz-btn"
+                          type="button"
+                          className="dm-sec is-amber"
+                          disabled={!online}
+                          title={online ? "ส่งข้อความเตือนไปที่จอ PC" : "Agent ออฟไลน์"}
+                          onClick={() => warn5(m)}
+                        >
+                          <AlertTriangle size={15} /> เตือน 5 นาที
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className="dm-sec is-danger"
+                        onClick={() => setCancelTarget({ m, s: session })}
+                      >
+                        <XCircle size={15} /> ยกเลิกบิล
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="dm-empty">
+                      <Monitor size={30} aria-hidden />
+                      {agentChip}
+                      {online && <span>ล็อกหน้าจออยู่</span>}
+                    </div>
+                    <div className="dm-actions">
+                      <button
+                        type="button"
+                        className="dm-primary is-sea"
+                        onClick={() => {
+                          if (guardStart()) setStartTarget(m);
+                        }}
+                      >
+                        <Play size={16} /> เริ่มเปิดเครื่อง
+                      </button>
+                      {isAdmin && (
+                        <div className="dm-row2">
+                          <button
+                            type="button"
+                            className="dm-sec is-amber"
+                            onClick={() => setLockTarget(m)}
+                            disabled={!online}
+                            title={online ? "สั่งล็อกหน้าจอเครื่อง PC นี้" : "Agent ออฟไลน์"}
+                          >
+                            <Lock size={15} /> ล็อก
+                          </button>
+                          <button
+                            type="button"
+                            className="dm-sec"
+                            disabled={!online}
+                            onClick={() => setCmdTarget({ m, type: "shutdown" })}
+                          >
+                            <Power size={15} /> ปิดเครื่อง
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {isAdmin && (
+        <details className="dm-tools">
+          <summary>
+            <ShieldAlert size={17} className="dm-tools-ic" aria-hidden />
+            <b>เครื่องมือควบคุม PC</b>
+            <span className="dm-tools-hint">
+              ล็อก / ปลดล็อก / ปิดเครื่องจากระยะไกล และประวัติคำสั่ง Agent
+            </span>
+            <span className="dm-tools-badge">แอดมิน</span>
+          </summary>
+          <div className="dm-tools-body">
+            <div>
+              <div className="dm-tools-rows">
+                {machines.map((m) => {
+                  const agent = agents.find((a) => a.machine_id === m.id);
+                  const online = isAgentOnline(agent);
+                  return (
+                    <div className="dm-tools-row" key={m.id}>
+                      <b className="dm-tools-pc">PC-{machineNo(m.machine_number)}</b>
+                      <span className={`dm-agent ${online ? "" : "is-off"}`}>
+                        <i aria-hidden />
+                        {online ? "ออนไลน์" : "ออฟไลน์"}
+                      </span>
+                      <span className="dm-tools-sub">
+                        {agent
+                          ? `v${agent.agent_version ?? "?"} · ${fmtAgo(agent.last_heartbeat)}`
+                          : "ยังไม่เคยเชื่อมต่อ"}
+                      </span>
+                      <span className="dm-tools-btns">
+                        <button
+                          type="button"
+                          className="dm-mini is-amber"
+                          disabled={!online}
+                          onClick={() => setCmdTarget({ m, type: "lock" })}
+                        >
+                          <Lock size={13} /> ล็อก
+                        </button>
+                        <button
+                          type="button"
+                          className="dm-mini is-green"
+                          disabled={!online}
+                          onClick={() => setCmdTarget({ m, type: "unlock" })}
+                        >
+                          <Unlock size={13} /> ปลดล็อก
+                        </button>
+                        <button
+                          type="button"
+                          className="dm-mini is-red"
                           disabled={!online}
                           onClick={() => setCmdTarget({ m, type: "shutdown" })}
                         >
-                          <Power size={13} /> ปิดเครื่อง
+                          <Power size={13} /> ปิด
                         </button>
-                      </>
-                    )}
-                  </div>
-                </>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="dm-tools-all">
+                <button
+                  type="button"
+                  className="dm-mini is-amber"
+                  onClick={() => setCmdTarget({ m: null, type: "lock" })}
+                >
+                  <Lock size={14} /> ล็อกทุกเครื่อง
+                </button>
+                <button
+                  type="button"
+                  className="dm-mini is-red"
+                  onClick={() => setCmdTarget({ m: null, type: "shutdown" })}
+                >
+                  <Power size={14} /> ปิดทุกเครื่อง
+                </button>
+              </div>
+            </div>
+            <div className="dm-tools-log">
+              <h4>ประวัติคำสั่งล่าสุด</h4>
+              {commands.length === 0 ? (
+                <div className="text-muted small">ยังไม่มีคำสั่ง</div>
+              ) : (
+                <ul>
+                  {commands.map((c) => {
+                    const mm = machines.find((x) => x.id === c.machine_id);
+                    const ageSec = (Date.now() - new Date(c.created_at).getTime()) / 1000;
+                    const stale = !c.ack_at && ageSec > 30;
+                    return (
+                      <li key={c.id}>
+                        <span>
+                          PC-{mm ? machineNo(mm.machine_number) : "??"} ·{" "}
+                          {CMD_LABEL[c.type] ?? c.type}
+                        </span>
+                        <span>
+                          {c.ack_at ? (
+                            <span className="is-ok">ตอบรับแล้ว</span>
+                          ) : stale ? (
+                            <span className="is-bad">ไม่ตอบรับ</span>
+                          ) : (
+                            <span className="is-wait">รอตอบรับ</span>
+                          )}{" "}
+                          · <time>{fmtHHMM(c.created_at)}</time>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </div>
-          );
-        })}
-      </div>
-
-      {isAdmin && (
-        <div className="pcz-admin">
-          <div className="pcz-admin-head">
-            <ShieldAlert size={16} className="text-warning" />
-            ควบคุมเครื่อง PC (เฉพาะ Admin)
           </div>
-          <div className="small text-muted mt-1 mb-2">
-            สั่งล็อก / ปลดล็อก / ปิดเครื่องจากระยะไกล — ใช้ป้องกันการใช้คอมพิวเตอร์นอกเวลาให้บริการ
-          </div>
-
-          {machines.map((m) => {
-            const agent = agents.find((a) => a.machine_id === m.id);
-            const online = isAgentOnline(agent);
-            return (
-              <div className="pcz-row" key={m.id}>
-                <div className="d-flex align-items-center gap-2 flex-wrap">
-                  <b style={{ fontSize: ".9rem" }}>
-                    PC-{String(m.machine_number).padStart(2, "0")}
-                  </b>
-                  <span className={`pcz-pill ${online ? "pcz-pill-on" : "pcz-pill-off"}`}>
-                    <span className={`pcz-dot ${online ? "live" : ""}`} />
-                    {online ? "Online" : "Offline"}
-                  </span>
-                  <span className="small text-muted">
-                    {agent
-                      ? `Agent v${agent.agent_version ?? "?"} · heartbeat ${fmtAgo(agent.last_heartbeat)}`
-                      : "ยังไม่เคยเชื่อมต่อ (Agent ไม่ได้รัน?)"}
-                  </span>
-                </div>
-
-                <div className="d-flex gap-2 flex-wrap justify-content-end">
-                  <button
-                    className="pcz-btn pcz-btn-amber"
-                    disabled={!online}
-                    onClick={() => setCmdTarget({ m, type: "lock" })}
-                  >
-                    <Lock size={13} /> ล็อก
-                  </button>
-                  <button
-                    className="pcz-btn pcz-btn-green"
-                    disabled={!online}
-                    onClick={() => setCmdTarget({ m, type: "unlock" })}
-                  >
-                    <Unlock size={13} /> ปลดล็อก
-                  </button>
-                  <button
-                    className="pcz-btn pcz-btn-red"
-                    disabled={!online}
-                    onClick={() => setCmdTarget({ m, type: "shutdown" })}
-                  >
-                    <Power size={13} /> ปิดเครื่อง
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-
-          <div className="d-flex gap-2 flex-wrap my-3">
-            <button
-              className="pcz-btn pcz-btn-amber"
-              onClick={() => setCmdTarget({ m: null, type: "lock" })}
-            >
-              <Lock size={14} /> ล็อกทุกเครื่อง
-            </button>
-            <button
-              className="pcz-btn pcz-btn-red"
-              onClick={() => setCmdTarget({ m: null, type: "shutdown" })}
-            >
-              <Power size={14} /> ปิดทุกเครื่อง
-            </button>
-          </div>
-
-          <div className="pcz-meta-label mb-2">ประวัติคำสั่งล่าสุด</div>
-          {commands.length === 0 ? (
-            <div className="small text-muted">ยังไม่มีคำสั่ง</div>
-          ) : (
-            <ul className="pcz-log">
-              {commands.map((c) => {
-                const mm = machines.find((x) => x.id === c.machine_id);
-                const ageSec = (Date.now() - new Date(c.created_at).getTime()) / 1000;
-                const stale = !c.ack_at && ageSec > 30;
-                return (
-                  <li key={c.id}>
-                    <span>
-                      PC-{mm ? String(mm.machine_number).padStart(2, "0") : "??"} ·{" "}
-                      <b>{CMD_LABEL[c.type] ?? c.type}</b>
-                    </span>
-                    <span className="text-muted">
-                      {new Date(c.created_at).toLocaleString("th-TH")}{" "}
-                      {c.ack_at ? (
-                        <span style={{ color: "var(--g-green)" }}>✓ ตอบรับแล้ว</span>
-                      ) : stale ? (
-                        <span style={{ color: "var(--g-red, #ef4444)" }}>
-                          ⚠ ไม่ตอบรับ (เครื่องอาจไม่ได้รัน Agent)
-                        </span>
-                      ) : (
-                        <span style={{ color: "var(--g-amber)" }}>… รอตอบรับ</span>
-                      )}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
+        </details>
       )}
 
       <ConfirmDialog
@@ -467,7 +550,7 @@ export function PcZonePanel({ machines }: Props) {
           onClose={() => setStartTarget(null)}
           onSuccess={() => {
             setStartTarget(null);
-            load();
+            reload();
           }}
         />
       )}
@@ -479,7 +562,7 @@ export function PcZonePanel({ machines }: Props) {
           onClose={() => setExtendTarget(null)}
           onSuccess={() => {
             setExtendTarget(null);
-            load();
+            reload();
           }}
         />
       )}
@@ -491,7 +574,7 @@ export function PcZonePanel({ machines }: Props) {
           onClose={() => setEndTarget(null)}
           onSuccess={() => {
             setEndTarget(null);
-            load();
+            reload();
           }}
         />
       )}
@@ -560,7 +643,7 @@ export function PcZonePanel({ machines }: Props) {
           setCancelTarget(null);
           try {
             await cancelPcSession(t.s.id);
-            await load();
+            await reload();
           } catch (e) {
             alert("ยกเลิกบิลไม่สำเร็จ: " + (e instanceof Error ? e.message : String(e)));
           }

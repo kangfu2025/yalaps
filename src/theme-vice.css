@@ -1,0 +1,757 @@
+/* ============================================================
+   ธีม "VICE NIGHT" — นีออนซันเซ็ตพื้นมืด (ได้แรงบันดาลใจจากเมืองชายหาดยุค 80)
+   ใช้เฉพาะเมื่อ <html data-theme="vice"> · ไม่มีอะไรเปลี่ยนในธีมเดิม
+   ไม่ใช้โลโก้ ภาพ หรือฟอนต์ของเกมใด ๆ — ต้นปาล์ม/พระอาทิตย์วาดเองทั้งหมด
+   เปิด/ปิดด้วยปุ่มสลับธีมในเมนูซ้าย (ค่าเก็บใน app_settings — theme_migration.sql)
+   ============================================================ */
+
+html[data-theme="vice"] {
+  /* พื้นกลางคืน */
+  --v-night-0: #0c0517;
+  --v-night-1: #160929;
+  --v-night-2: #210f3b;
+  --v-night-3: #2c1550;
+  --v-line: #4d2b75;
+  --v-line-hot: rgba(255, 62, 154, 0.45);
+  /* ตัวอักษร */
+  --v-text: #fff4f9;
+  --v-muted: #c9b3de;
+  /* สีพระอาทิตย์ตก + ทะเล */
+  --v-pink: #ff3e9a;
+  --v-coral: #ff7a45;
+  --v-sun: #ffcc33;
+  --v-aqua: #22e6d6;
+  --v-sky: #5ccaff;
+  --v-palm: #3cf29b;
+  --v-red: #ff4f6e;
+  --v-sunset: linear-gradient(180deg, #ffd166 0%, #ff8c42 32%, #ff3e9a 68%, #9b2fe0 100%);
+  --v-sunset-x: linear-gradient(100deg, #ffcc33 0%, #ff7a45 38%, #ff3e9a 100%);
+  --v-sea-x: linear-gradient(100deg, #22e6d6 0%, #5ccaff 100%);
+  /* ฟอนต์เดียวทั้งระบบ — ธีมนี้ใช้น้ำหนักหนา + ตัวเอียงแทนการเปลี่ยนฟอนต์ */
+  --v-display: var(--yl-font);
+  --v-body: var(--yl-font);
+
+  /* map เข้า token เดิม — ส่วนที่ใช้ var(--g-*) เปลี่ยนตามทันที */
+  --g-bg-1: var(--v-night-0);
+  --g-bg-2: var(--v-night-1);
+  --g-bg-3: var(--v-night-2);
+  --g-surface: var(--v-night-2);
+  --g-surface-2: var(--v-night-3);
+  --g-border: var(--v-line);
+  --g-text: var(--v-text);
+  --g-text-muted: var(--v-muted);
+  --g-cyan: var(--v-aqua);
+  --g-magenta: var(--v-pink);
+  --g-violet: #b14cff;
+  --g-amber: var(--v-sun);
+  --g-red: var(--v-red);
+  --g-green: var(--v-palm);
+  --yl-violet: var(--v-pink);
+  --yl-pink: var(--v-coral);
+}
+
+/* ---------- ฉากหลัง: ท้องฟ้ากลางคืน แสงขอบฟ้า พระอาทิตย์ลายเส้น ต้นปาล์ม ---------- */
+html[data-theme="vice"],
+html[data-theme="vice"] body {
+  background:
+    radial-gradient(1100px 420px at 70% 108%, rgba(255, 122, 69, 0.28), transparent 70%),
+    radial-gradient(900px 380px at 20% 110%, rgba(255, 62, 154, 0.26), transparent 70%),
+    radial-gradient(800px 500px at 0% -10%, rgba(155, 47, 224, 0.28), transparent 60%),
+    linear-gradient(180deg, var(--v-night-0) 0%, #1a0a31 55%, #2b0f3f 100%);
+  background-attachment: fixed;
+  color: var(--v-text);
+  font-family: var(--v-body);
+}
+html[data-theme="vice"] body::before,
+html[data-theme="vice"] body::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+}
+/* พระอาทิตย์ครึ่งดวงมีเส้นตัด */
+html[data-theme="vice"] body::before {
+  width: 520px;
+  height: 520px;
+  right: -90px;
+  bottom: -250px;
+  border-radius: 50%;
+  background: var(--v-sunset);
+  opacity: 0.16;
+  -webkit-mask: repeating-linear-gradient(180deg, #000 0 26px, transparent 26px 34px);
+  mask: repeating-linear-gradient(180deg, #000 0 26px, transparent 26px 34px);
+  filter: blur(0.3px);
+}
+/* ต้นปาล์มเงา (วาดเอง) */
+html[data-theme="vice"] body::after {
+  right: 250px;
+  bottom: 0;
+  width: 360px;
+  height: 300px;
+  opacity: 0.32;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 360 300'%3E%3Cg fill='%23090312'%3E%3Cpath d='M92 300 C96 236 104 176 122 118 L130 120 C114 178 108 238 106 300Z'/%3E%3Cpath d='M126 116 C96 92 58 92 24 112 C60 98 92 104 118 124Z'/%3E%3Cpath d='M126 116 C110 80 80 62 44 62 C80 72 104 92 120 122Z'/%3E%3Cpath d='M126 116 C134 78 160 54 196 48 C166 64 146 88 132 122Z'/%3E%3Cpath d='M126 116 C160 96 200 98 232 120 C198 108 166 110 132 126Z'/%3E%3Cpath d='M126 116 C150 128 168 152 172 186 C160 156 144 138 124 126Z'/%3E%3Cpath d='M126 116 C100 128 84 152 82 182 C92 154 106 138 128 126Z'/%3E%3Cpath d='M230 300 C232 252 238 210 252 170 L258 172 C246 212 242 254 242 300Z'/%3E%3Cpath d='M255 168 C234 150 206 150 182 164 C208 156 232 160 250 176Z'/%3E%3Cpath d='M255 168 C266 142 290 128 318 128 C292 138 274 152 260 176Z'/%3E%3Cpath d='M255 168 C280 156 308 160 330 178 C304 170 282 172 260 180Z'/%3E%3Cpath d='M255 168 C246 140 226 124 200 120 C224 132 240 148 250 174Z'/%3E%3Cpath d='M255 168 C272 180 282 198 282 222 C274 200 264 188 252 178Z'/%3E%3C/g%3E%3C/svg%3E")
+    no-repeat right bottom / contain;
+  transform: scaleX(-1);
+}
+html[data-theme="vice"] #root,
+html[data-theme="vice"] .yl-shell {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- ตัวอักษรหัวข้อ: ตัวหนา + เอียง ---------- */
+html[data-theme="vice"] h1,
+html[data-theme="vice"] h2,
+html[data-theme="vice"] h3,
+html[data-theme="vice"] h4,
+html[data-theme="vice"] h5,
+html[data-theme="vice"] .modal-title,
+html[data-theme="vice"] .yl-crumb,
+html[data-theme="vice"] .yl-sb-title {
+  font-family: var(--v-display);
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+html[data-theme="vice"] .text-muted {
+  color: var(--v-muted) !important;
+}
+
+/* ---------- แถบเมนูซ้าย ---------- */
+html[data-theme="vice"] .yl-sb {
+  background:
+    radial-gradient(140% 50% at 0% 100%, rgba(255, 62, 154, 0.2), transparent 60%),
+    radial-gradient(120% 40% at 100% 0%, rgba(155, 47, 224, 0.25), transparent 60%),
+    linear-gradient(180deg, #120724 0%, #0d0519 100%);
+  border-right: 1px solid var(--v-line-hot);
+  box-shadow: 8px 0 40px rgba(255, 62, 154, 0.1);
+}
+html[data-theme="vice"] .yl-sb-logo {
+  background: var(--v-sunset);
+  box-shadow: 0 0 24px rgba(255, 62, 154, 0.55);
+  border-radius: 12px;
+}
+html[data-theme="vice"] .yl-sb-title {
+  font-size: 1.02rem;
+  text-transform: uppercase;
+  background: var(--v-sunset-x);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+html[data-theme="vice"] .yl-sb-title * {
+  color: inherit !important;
+  -webkit-text-fill-color: transparent;
+}
+html[data-theme="vice"] .yl-sb-sub,
+html[data-theme="vice"] .yl-sb-grouplabel {
+  color: var(--v-muted);
+}
+html[data-theme="vice"] .yl-sb-item {
+  color: #ead9f7;
+}
+html[data-theme="vice"] .yl-sb-item:hover {
+  background: rgba(255, 62, 154, 0.13);
+}
+html[data-theme="vice"] .yl-sb-item.active {
+  background: var(--v-sunset-x);
+  color: #1b0627;
+  border-color: transparent;
+  box-shadow: 0 6px 22px rgba(255, 62, 154, 0.35);
+  font-weight: 700;
+}
+html[data-theme="vice"] .yl-sb-item.active::before {
+  display: none;
+}
+html[data-theme="vice"] .yl-sb-avatar {
+  background: var(--v-sea-x);
+  color: #04232a;
+}
+html[data-theme="vice"] .yl-sb-role {
+  color: var(--v-pink);
+}
+
+/* ---------- แถบบน ---------- */
+html[data-theme="vice"] .yl-topbar {
+  background: rgba(16, 6, 30, 0.72);
+  border-bottom: 0;
+  box-shadow: inset 0 -2px 0 0 transparent;
+  backdrop-filter: blur(10px);
+}
+html[data-theme="vice"] .yl-topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--v-sunset-x);
+  opacity: 0.85;
+}
+html[data-theme="vice"] .yl-crumb {
+  font-size: 1.15rem;
+  color: #fff;
+}
+html[data-theme="vice"] .yl-burger {
+  background: rgba(255, 62, 154, 0.16);
+  border-color: var(--v-line-hot);
+}
+
+/* ---------- แถบสถานะร้าน ---------- */
+html[data-theme="vice"] .yl-shop-bar {
+  background: linear-gradient(100deg, rgba(34, 230, 214, 0.1), rgba(33, 15, 59, 0.85) 45%);
+  border-color: rgba(34, 230, 214, 0.4);
+}
+html[data-theme="vice"] .yl-shop-bar.is-closed {
+  background: linear-gradient(100deg, rgba(255, 79, 110, 0.14), rgba(33, 15, 59, 0.85) 45%);
+  border-color: rgba(255, 79, 110, 0.45);
+}
+html[data-theme="vice"] .yl-shop-title {
+  font-family: var(--v-display);
+  font-style: italic;
+}
+
+/* ---------- หัวโซน: ป้ายเอียงแบบป้ายถนนริมหาด ---------- */
+html[data-theme="vice"] .zone-sofa-title,
+html[data-theme="vice"] .zone-racing-title {
+  font-family: var(--v-display);
+  font-style: italic;
+  font-size: 1.35rem;
+  letter-spacing: 0.04em;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 22px 6px 18px;
+  transform: skewX(-10deg);
+  text-shadow: none;
+}
+html[data-theme="vice"] .zone-sofa-title > *,
+html[data-theme="vice"] .zone-racing-title > * {
+  display: inline-block;
+  transform: skewX(10deg);
+}
+html[data-theme="vice"] .zone-sofa-title {
+  background: var(--v-sunset-x);
+  color: #1b0627;
+  box-shadow: 0 8px 26px rgba(255, 62, 154, 0.35);
+}
+html[data-theme="vice"] .zone-racing-title {
+  background: var(--v-sea-x);
+  color: #04232a;
+  box-shadow: 0 8px 26px rgba(34, 230, 214, 0.3);
+}
+
+/* ---------- การ์ดเครื่อง ---------- */
+html[data-theme="vice"] .ps5-ring {
+  background: conic-gradient(
+    transparent,
+    transparent,
+    var(--v-pink),
+    var(--v-sun),
+    transparent,
+    transparent,
+    var(--v-aqua),
+    transparent
+  );
+}
+html[data-theme="vice"] .ps5-overdue .ps5-ring {
+  background: conic-gradient(
+    transparent,
+    transparent,
+    var(--v-red),
+    transparent,
+    transparent,
+    var(--v-red),
+    transparent
+  );
+}
+html[data-theme="vice"] .ps5-credit .ps5-ring {
+  background: conic-gradient(
+    transparent,
+    transparent,
+    var(--v-sun),
+    transparent,
+    transparent,
+    var(--v-coral),
+    transparent
+  );
+}
+html[data-theme="vice"] .ps5-inner {
+  background:
+    linear-gradient(180deg, rgba(255, 62, 154, 0.09), transparent 38%),
+    linear-gradient(160deg, #24103f, #170a2b);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+/* แถบพระอาทิตย์ตกบนหัวการ์ด */
+html[data-theme="vice"] .ps5-inner::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: var(--v-sunset-x);
+}
+html[data-theme="vice"] .ps5-idle .ps5-inner::before {
+  background: var(--v-line);
+}
+html[data-theme="vice"] .ps5-zone {
+  color: var(--v-sun);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+html[data-theme="vice"] .ps5-no {
+  font-family: var(--v-display);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 1.45rem;
+  line-height: 1.15;
+  white-space: nowrap;
+  color: #fff;
+}
+html[data-theme="vice"] .ps5-avatar {
+  background: rgba(255, 62, 154, 0.18);
+  border-color: var(--v-line-hot);
+  color: var(--v-pink);
+}
+html[data-theme="vice"] .ps5-lab {
+  color: rgba(255, 236, 248, 0.6);
+}
+html[data-theme="vice"] .ps5-pkg {
+  color: var(--v-sun);
+}
+html[data-theme="vice"] .ps5-stat {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+html[data-theme="vice"] .ps5-timer {
+  background: linear-gradient(180deg, rgba(12, 5, 23, 0.85), rgba(43, 15, 63, 0.75));
+  border: 1px solid rgba(255, 62, 154, 0.22);
+  box-shadow: inset 0 -16px 30px -18px rgba(255, 122, 69, 0.45);
+}
+html[data-theme="vice"] .ps5-time {
+  font-family: var(--v-display);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 2.05rem;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  background: var(--v-sunset);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 0 10px rgba(255, 62, 154, 0.4));
+}
+html[data-theme="vice"] .ps5-overdue .ps5-time {
+  background: none;
+  color: var(--v-red);
+  -webkit-text-fill-color: var(--v-red);
+}
+html[data-theme="vice"] .ps5-time-lab {
+  color: rgba(255, 236, 248, 0.55);
+}
+html[data-theme="vice"] .ps5-pill {
+  font-weight: 700;
+}
+html[data-theme="vice"] .ps5-btn-main {
+  background: var(--v-sunset-x);
+  color: #1b0627;
+  font-weight: 700;
+  box-shadow: 0 8px 22px rgba(255, 62, 154, 0.3);
+}
+html[data-theme="vice"] .ps5-btn-main:hover {
+  filter: brightness(1.08);
+}
+html[data-theme="vice"] .ps5-btn-start {
+  background: rgba(34, 230, 214, 0.1);
+  border: 1px solid rgba(34, 230, 214, 0.45);
+  color: var(--v-aqua);
+}
+html[data-theme="vice"] .ps5-btn-start:hover {
+  background: var(--v-sea-x);
+  color: #04232a;
+  box-shadow: 0 10px 24px rgba(34, 230, 214, 0.3);
+}
+html[data-theme="vice"] .ps5-empty-icon {
+  background: rgba(255, 204, 51, 0.08);
+  color: rgba(255, 204, 51, 0.55);
+}
+html[data-theme="vice"] .ps5-empty p {
+  color: var(--v-muted);
+}
+
+/* ---------- ปุ่ม Bootstrap ---------- */
+html[data-theme="vice"] .btn-primary,
+html[data-theme="vice"] .btn-danger {
+  background: var(--v-sunset-x) !important;
+  border: 0 !important;
+  color: #1b0627 !important;
+  font-weight: 700;
+  box-shadow: 0 6px 18px rgba(255, 62, 154, 0.28);
+}
+html[data-theme="vice"] .btn-success {
+  background: var(--v-sea-x) !important;
+  border: 0 !important;
+  color: #04232a !important;
+  font-weight: 700;
+  box-shadow: 0 6px 18px rgba(34, 230, 214, 0.25);
+}
+html[data-theme="vice"] .btn-outline-primary {
+  color: var(--v-pink);
+  border-color: var(--v-line-hot);
+}
+html[data-theme="vice"] .btn-outline-primary:hover {
+  background: var(--v-pink);
+  color: #1b0627;
+}
+html[data-theme="vice"] .form-control,
+html[data-theme="vice"] .form-select {
+  background-color: rgba(12, 5, 23, 0.65);
+  border-color: var(--v-line);
+  color: var(--v-text);
+}
+html[data-theme="vice"] .form-control:focus,
+html[data-theme="vice"] .form-select:focus {
+  border-color: var(--v-pink);
+  box-shadow: 0 0 0 0.2rem rgba(255, 62, 154, 0.25);
+}
+html[data-theme="vice"] .form-check-input:checked {
+  background-color: var(--v-pink);
+  border-color: var(--v-pink);
+}
+
+/* ---------- หน้าต่าง (modal) ---------- */
+html[data-theme="vice"] .modal-custom {
+  background:
+    radial-gradient(120% 40% at 100% 100%, rgba(255, 122, 69, 0.12), transparent 60%),
+    linear-gradient(180deg, #23103f, #170a2b);
+  border: 1px solid var(--v-line-hot);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.65),
+    0 0 50px rgba(255, 62, 154, 0.18);
+}
+html[data-theme="vice"] .modal-custom .modal-header {
+  background:
+    repeating-linear-gradient(-55deg, rgba(255, 255, 255, 0.06) 0 2px, transparent 2px 14px),
+    var(--v-sunset-x) !important;
+  color: #1b0627 !important;
+  border-bottom: 0;
+}
+html[data-theme="vice"] .modal-custom .modal-header .modal-title,
+html[data-theme="vice"] .modal-custom .modal-header h5 {
+  color: #1b0627 !important;
+}
+html[data-theme="vice"] .modal-custom .modal-header .btn-close {
+  filter: none;
+}
+html[data-theme="vice"] .radio-box {
+  background: rgba(12, 5, 23, 0.55);
+}
+html[data-theme="vice"] .radio-item input {
+  accent-color: var(--v-pink);
+}
+
+/* แพ็กเกจ + ชั่วโมงสะสม */
+html[data-theme="vice"] .yl-pmode button.is-on {
+  background: var(--v-sunset-x);
+  color: #1b0627;
+  box-shadow: 0 6px 18px rgba(255, 62, 154, 0.35);
+}
+html[data-theme="vice"] .yl-pkg-opt {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  background: linear-gradient(170deg, rgba(255, 62, 154, 0.08), rgba(12, 5, 23, 0.6));
+}
+html[data-theme="vice"] .yl-pkg-opt.is-on {
+  border-color: var(--v-sun);
+  background: linear-gradient(170deg, rgba(255, 204, 51, 0.22), rgba(255, 62, 154, 0.16));
+  box-shadow: 0 0 22px rgba(255, 204, 51, 0.35);
+}
+html[data-theme="vice"] .yl-pkg-group {
+  color: var(--v-pink);
+  text-transform: uppercase;
+}
+html[data-theme="vice"] .yl-pkg-label {
+  font-family: var(--v-display);
+  font-style: italic;
+  font-size: 1.05rem;
+}
+html[data-theme="vice"] .yl-pkg-price {
+  font-family: var(--v-display);
+  font-style: italic;
+  font-size: 1.45rem;
+  color: var(--v-sun);
+}
+html[data-theme="vice"] .yl-bank-box.is-on {
+  border-color: var(--v-aqua);
+  background: rgba(34, 230, 214, 0.1);
+}
+html[data-theme="vice"] .yl-pkg-chip {
+  background: rgba(255, 204, 51, 0.16);
+  border-color: rgba(255, 204, 51, 0.5);
+  color: #ffe9a8;
+}
+
+/* ---------- การ์ด/ตารางทั่วไป ---------- */
+html[data-theme="vice"] .card {
+  background: linear-gradient(180deg, rgba(36, 16, 63, 0.92), rgba(23, 10, 43, 0.92));
+  border-color: var(--v-line);
+}
+html[data-theme="vice"] .card-header {
+  background: rgba(255, 62, 154, 0.08) !important;
+  border-bottom-color: var(--v-line);
+}
+html[data-theme="vice"] .nav-pills .nav-link.active {
+  background: var(--v-sunset-x);
+  color: #1b0627;
+}
+
+/* ============================================================
+   จอลูกค้า (/display) — ฉากพระอาทิตย์ตกริมทะเลเต็มจอ
+   ============================================================ */
+html[data-theme="vice"] .display-portrait {
+  background:
+    radial-gradient(80% 30% at 50% 74%, rgba(255, 140, 66, 0.55), transparent 70%),
+    linear-gradient(
+      180deg,
+      #0c0517 0%,
+      #2a0d45 38%,
+      #6b1857 62%,
+      #c33a6b 74%,
+      #1a0b2e 75%,
+      #0c0517 100%
+    );
+}
+/* พระอาทิตย์ลายเส้นบนขอบฟ้า */
+html[data-theme="vice"] .display-portrait::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: min(70vw, 60vh);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--v-sunset);
+  opacity: 0.55;
+  -webkit-mask:
+    linear-gradient(#000 0 50%, transparent 50%),
+    repeating-linear-gradient(180deg, #000 0 5%, transparent 5% 6.5%);
+  -webkit-mask-composite: source-in;
+  mask:
+    linear-gradient(#000 0 50%, transparent 50%) intersect,
+    repeating-linear-gradient(180deg, #000 0 5%, transparent 5% 6.5%);
+  pointer-events: none;
+  z-index: 0;
+}
+/* แสงสะท้อนบนน้ำ */
+html[data-theme="vice"] .display-portrait::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 75%;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(255, 140, 66, 0.22) 0 2px,
+    transparent 2px 14px
+  );
+  -webkit-mask: radial-gradient(40% 60% at 50% 0%, #000, transparent);
+  mask: radial-gradient(40% 60% at 50% 0%, #000, transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+html[data-theme="vice"] .display-pay > *,
+html[data-theme="vice"] .display-promo-empty {
+  position: relative;
+  z-index: 1;
+}
+html[data-theme="vice"] .display-pay-header .brand,
+html[data-theme="vice"] .display-promo-empty .brand-big {
+  font-family: var(--v-display);
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: var(--v-sunset-x);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 4px 18px rgba(255, 62, 154, 0.45));
+}
+html[data-theme="vice"] .display-pay-header .zone-badge {
+  background: rgba(34, 230, 214, 0.14);
+  border-color: rgba(34, 230, 214, 0.6);
+  color: #d9fffb;
+}
+html[data-theme="vice"] .display-customer {
+  font-family: var(--v-display);
+  font-style: italic;
+  color: #fff;
+  text-shadow: 0 2px 16px rgba(255, 62, 154, 0.55);
+}
+html[data-theme="vice"] .display-amount-block {
+  background: rgba(12, 5, 23, 0.72);
+  border: 1px solid rgba(255, 204, 51, 0.45);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.45),
+    0 0 40px rgba(255, 62, 154, 0.2);
+  backdrop-filter: blur(6px);
+}
+html[data-theme="vice"] .amount-label {
+  color: var(--v-muted);
+}
+html[data-theme="vice"] .amount-value {
+  font-family: var(--v-display);
+  font-style: italic;
+  font-weight: 700;
+  background: linear-gradient(180deg, #ffe08a, #ffcc33 45%, #ff8c42);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 0 22px rgba(255, 140, 66, 0.55));
+}
+html[data-theme="vice"] .display-breakdown,
+html[data-theme="vice"] .display-qr,
+html[data-theme="vice"] .qr-container {
+  background: rgba(12, 5, 23, 0.7);
+  border-color: var(--v-line-hot);
+}
+
+/* ============================================================
+   จออันดับ (/ranking) — ป้ายประกาศ "ดาวเด่นประจำร้าน"
+   ============================================================ */
+html[data-theme="vice"] .yl-rk-screen {
+  background:
+    radial-gradient(70% 30% at 50% 100%, rgba(255, 122, 69, 0.45), transparent 70%),
+    linear-gradient(180deg, #0c0517 0%, #1d0a35 50%, #3a1048 100%);
+  font-family: var(--v-body);
+}
+html[data-theme="vice"] .yl-rk-grid {
+  background-image:
+    linear-gradient(rgba(255, 62, 154, 0.5) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 62, 154, 0.5) 1px, transparent 1px);
+}
+html[data-theme="vice"] .yl-rk-orb.a {
+  background: #ff3e9a;
+  opacity: 0.35;
+}
+html[data-theme="vice"] .yl-rk-orb.b {
+  background: #ff8c42;
+  opacity: 0.3;
+}
+html[data-theme="vice"] .yl-rk-brand {
+  color: var(--v-aqua);
+}
+html[data-theme="vice"] .yl-rk-title {
+  font-family: var(--v-display);
+  font-style: italic;
+  font-weight: 700;
+  background: var(--v-sunset);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 4px 20px rgba(255, 62, 154, 0.5));
+}
+html[data-theme="vice"] .yl-rk-name,
+html[data-theme="vice"] .yl-rk-pts,
+html[data-theme="vice"] .yl-rk-score,
+html[data-theme="vice"] .yl-rk-block span,
+html[data-theme="vice"] .yl-rk-no {
+  font-family: var(--v-display);
+  font-style: italic;
+}
+html[data-theme="vice"] .yl-rk-block {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--t2) 70%, transparent), transparent 120%),
+    linear-gradient(180deg, #2a0f45, #12061f);
+}
+html[data-theme="vice"] .yl-rk-list li > div,
+html[data-theme="vice"] .yl-rk-list li > button {
+  background: linear-gradient(100deg, rgba(255, 62, 154, 0.12), rgba(18, 6, 31, 0.8) 40%);
+  border-color: rgba(255, 62, 154, 0.3);
+}
+html[data-theme="vice"] .yl-rk-bar i {
+  background: var(--v-sunset-x);
+}
+
+/* ---------- แดชบอร์ดใหม่ (dm-*) — เปลี่ยนแค่ตัวแปร โครงอยู่ใน styles.css ---------- */
+html[data-theme="vice"] {
+  --dm-card: linear-gradient(160deg, #24103f, #170a2b);
+  --dm-card-tint: rgba(255, 62, 154, 0.07);
+  --dm-hot: var(--v-sunset-x);
+  --dm-hot-ink: #1b0627;
+  --dm-hot-glow: rgba(255, 62, 154, 0.28);
+  --dm-sea: var(--v-sea-x);
+  --dm-sea-ink: #04232a;
+  --dm-time: var(--v-sunset);
+  --dm-stripe: var(--v-sunset-x);
+  --dm-play: var(--v-aqua);
+  --dm-warn: var(--v-sun);
+  --dm-over: var(--v-red);
+  --dm-due: var(--v-sun);
+  --dm-sign-sofa: var(--v-sunset-x);
+  --dm-sign-sofa-ink: #1b0627;
+  --dm-sign-racing: var(--v-sea-x);
+  --dm-sign-racing-ink: #04232a;
+  --dm-sign-pc: linear-gradient(100deg, #b14cff, #5ccaff);
+  --dm-sign-pc-ink: #ffffff;
+  --dm-title: var(--v-sunset-x);
+  --dm-slant: oblique 10deg;
+}
+html[data-theme="vice"] .dm-card.is-play {
+  border-color: rgba(255, 62, 154, 0.35);
+  box-shadow: 0 10px 30px rgba(255, 62, 154, 0.12);
+}
+html[data-theme="vice"] .dm-zone {
+  color: var(--v-sun);
+}
+html[data-theme="vice"] .dm-promo {
+  background: linear-gradient(
+    100deg,
+    rgba(255, 204, 51, 0.16),
+    rgba(255, 62, 154, 0.14) 45%,
+    rgba(33, 15, 59, 0.7)
+  );
+  border-color: rgba(255, 204, 51, 0.45);
+}
+html[data-theme="vice"] .dm-promo-tag {
+  background: var(--v-sun);
+}
+html[data-theme="vice"] .dm-seg button.is-on {
+  color: #1b0627;
+}
+html[data-theme="vice"] .dm-sign.is-sofa {
+  box-shadow: 0 8px 24px rgba(255, 62, 154, 0.32);
+}
+html[data-theme="vice"] .dm-sign.is-racing {
+  box-shadow: 0 8px 24px rgba(34, 230, 214, 0.28);
+}
+html[data-theme="vice"] .dm-sign.is-pc {
+  box-shadow: 0 8px 24px rgba(177, 76, 255, 0.3);
+}
+
+/* ---------- ขายสินค้า / คลังสินค้า: ใช้สีทะเลเป็นสีเน้น ยอดเงินเป็นสีพระอาทิตย์ ---------- */
+html[data-theme="vice"] {
+  --pos-mint: var(--v-aqua);
+  --pos-mint-hi: var(--v-sun);
+  --pos-surface: var(--v-night-3);
+  --pos-ink: #1b0627;
+}
+
+/* ---------- กล่องแจ้งเตือน ---------- */
+html[data-theme="vice"] .alert-info {
+  background: rgba(34, 230, 214, 0.1);
+  border-color: rgba(34, 230, 214, 0.4);
+  color: #c8fffa;
+}
+html[data-theme="vice"] .alert-danger {
+  background: rgba(255, 79, 110, 0.12);
+  border-color: rgba(255, 79, 110, 0.45);
+}
+html[data-theme="vice"] .alert-warning {
+  background: rgba(255, 204, 51, 0.1);
+  border-color: rgba(255, 204, 51, 0.45);
+  color: #ffe9a8;
+}

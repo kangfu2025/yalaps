@@ -19,11 +19,21 @@ import {
   IdCard,
   Star,
   Gift,
+  PiggyBank,
+  Package,
 } from "lucide-react";
 import type { Machine, Reservation } from "@/lib/supabase";
 import { HOUR_OPTIONS, calcPrice, formatBaht, formatHours } from "@/lib/priceEngine";
 import { addFood, extendTime, setReservationMember } from "@/lib/reservations";
-import { checkout, summarizeCheckout, freeHourValue } from "@/lib/billing";
+import {
+  checkout,
+  summarizeCheckout,
+  freeHourValue,
+  isPackageBill,
+  pointsHoursOf,
+} from "@/lib/billing";
+import { saveHourBank, hourBankToast, fmtMinutes } from "@/lib/packages";
+import { useShop } from "@/hooks/useShop";
 import { MemberSearch } from "./MemberSearch";
 import {
   getMember,
@@ -51,7 +61,8 @@ function payModeToMethod(m: PayMode): PaymentMethod {
 }
 import { ConfirmDialog } from "./ConfirmDialog";
 
-type Tab = "food" | "extend" | "checkout";
+export type ManageTab = "food" | "extend" | "checkout";
+type Tab = ManageTab;
 type PayMode = "cash" | "transfer" | "mixed" | "credit" | "points";
 
 interface Props {
@@ -60,6 +71,8 @@ interface Props {
   onClose: () => void;
   onSuccess: () => void;
   promotion?: Promotion | null;
+  /** แท็บที่เปิดมาก่อน — ปุ่ม "ต่อเวลา" บนการ์ดเปิดมาที่แท็บต่อเวลาเลย */
+  initialTab?: Tab;
 }
 
 function formatClock(input: string | number | null | undefined): string {
@@ -78,8 +91,16 @@ function formatDateClock(input: string | number | null | undefined): string {
   return `${date} ${time} น.`;
 }
 
-export function ManageModal({ machine, reservation, onClose, onSuccess, promotion = null }: Props) {
-  const [tab, setTab] = useState<Tab>("food");
+export function ManageModal({
+  machine,
+  reservation,
+  onClose,
+  onSuccess,
+  promotion = null,
+  initialTab = "food",
+}: Props) {
+  const { notify } = useShop();
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [busy, setBusy] = useState(false);
   const [confirmCheckout, setConfirmCheckout] = useState(false);
   const [autoRun, setAutoRun] = useState<null | "extend" | "checkout">(null);
@@ -130,14 +151,29 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
   // และห้ามให้กดแลกซ้ำ (ฐานข้อมูลกันไว้อีกชั้นด้วย)
   const redeemedAtStart = Number(reservation.points_spent) > 0;
   const startDiscount = redeemedAtStart ? Number(reservation.points_discount) || 0 : 0;
+  // บิลแพ็กเกจ/ชั่วโมงสะสม ราคาตายตัวแล้ว ไม่ให้แลกแต้มฟรี 1 ชม. ซ้อน
+  const pkgBill = isPackageBill(reservation);
+  const bankUsedMin = Number(reservation.hour_bank_used_min) || 0;
   const canRedeem =
+    !pkgBill &&
     !redeemedAtStart &&
     !!member &&
     canRedeemZone(machine.zone, cfg) &&
     member.points >= cfg.redeem_cost;
   const willEarn = member
-    ? pointsForPlay(machine.zone, { hours: Number(reservation.total_hours) }, cfg)
+    ? pointsForPlay(machine.zone, { hours: pointsHoursOf(reservation) }, cfg)
     : 0;
+
+  // เก็บเวลาที่เหลือเข้าบัญชีสมาชิก — เฉพาะบิลแพ็กเกจโซฟา (ตัวเลขนี้แค่โชว์ ฐานข้อมูลคิดเองตอนเก็บ)
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 15_000);
+    return () => clearInterval(id);
+  }, []);
+  const leftMin = Math.max(0, Math.floor(((reservation.end_time_ms ?? 0) - nowMs) / 60_000));
+  const bankable = pkgBill && machine.zone === "sofa" && leftMin >= 1;
+  const [saveBank, setSaveBank] = useState(true);
+  const willSaveBank = bankable && saveBank && !!member;
 
   async function handleMemberChange(m: Member | null) {
     setMember(m);
@@ -354,6 +390,19 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
         member,
         useFreeHour: useFreeHour && canRedeem,
       });
+      // เก็บหลังปิดบิลเท่านั้น — ถ้าเก็บก่อนแล้วปิดบิลไม่ผ่าน ลูกค้าจะได้ทั้งเวลาเล่นต่อและชั่วโมงในบัญชี
+      // ฐานข้อมูลนับเวลาที่เหลือ ณ เวลาปิดบิล และยอมให้กดเก็บภายใน 15 นาทีหลังปิด
+      if (willSaveBank) {
+        try {
+          notify(hourBankToast(await saveHourBank(reservation.id)));
+        } catch (e) {
+          notify({
+            kind: "warning",
+            title: "ปิดบิลแล้ว แต่เก็บชั่วโมงไม่สำเร็จ",
+            text: e instanceof Error ? e.message : String(e),
+          });
+        }
+      }
       if (!opts.keepDisplay) await clearDisplay();
       onSuccess();
       onClose();
@@ -365,6 +414,35 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
   }
 
   const headerLabel = machine.zone === "sofa" ? "โซฟา" : "รถแข่ง";
+
+  const bankBox = bankable ? (
+    <div className={`yl-bank-box ${willSaveBank ? "is-on" : ""}`}>
+      <div className="form-check m-0">
+        <input
+          className="form-check-input"
+          type="checkbox"
+          id="saveHourBank"
+          checked={willSaveBank}
+          disabled={!member}
+          onChange={(e) => setSaveBank(e.target.checked)}
+        />
+        <label className="form-check-label" htmlFor="saveHourBank">
+          <PiggyBank size={15} /> เก็บเวลาที่เหลือ <b>{fmtMinutes(leftMin)}</b> เข้าบัญชีสมาชิก
+        </label>
+      </div>
+      <div className="yl-bank-note">
+        {member ? (
+          bankUsedMin > 0 ? (
+            <>คืนเข้าก้อนเดิม วันหมดอายุเดิม · นับนาทีจริง ณ ตอนกดปิดบิล</>
+          ) : (
+            <>ใช้ได้ 30 วัน · เฉพาะโซนโซฟา · นับนาทีจริง ณ ตอนกดปิดบิล</>
+          )
+        ) : (
+          <span className="text-danger">ผูกเบอร์สมาชิกด้านซ้ายก่อน จึงจะเก็บชั่วโมงได้</span>
+        )}
+      </div>
+    </div>
+  ) : null;
   const extendedMinutes = Math.round(Number(reservation.extended_hours) * 60);
 
   return (
@@ -431,6 +509,17 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
                     {formatHours(reservation.total_hours)} ชม.
                   </span>
                 </p>
+                {pkgBill && (
+                  <p className="mb-1 d-flex align-items-center gap-2">
+                    <Package size={16} className="text-info" />{" "}
+                    <b className="text-nowrap">{bankUsedMin > 0 ? "ชั่วโมงสะสม:" : "แพ็กเกจ:"}</b>{" "}
+                    <span className="yl-pkg-chip">
+                      {bankUsedMin > 0
+                        ? `ใช้ ${fmtMinutes(bankUsedMin)}`
+                        : `${reservation.package_name ?? "แพ็กเกจ"} · ${formatBaht(Number(reservation.package_price))} บ.`}
+                    </span>
+                  </p>
+                )}
 
                 <hr className="my-2" />
 
@@ -473,6 +562,10 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
                         <Gift size={13} /> บิลนี้ใช้ <b>{Number(reservation.points_spent)}</b> แต้ม
                         แลกเล่นฟรี 1 ชม. ไปแล้วตอนเปิดเครื่อง — หักส่วนลด{" "}
                         <b>{formatBaht(startDiscount)}</b> บ. ให้แล้ว
+                      </div>
+                    ) : pkgBill ? (
+                      <div className="small text-muted mt-1">
+                        บิลแพ็กเกจ/ชั่วโมงสะสม — แลกแต้มฟรี 1 ชม. ซ้อนไม่ได้
                       </div>
                     ) : canRedeemZone(machine.zone, cfg) ? (
                       <div className="form-check mt-2">
@@ -750,6 +843,7 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
                           )}
                         </div>
                       </div>
+                      {bankBox}
                       <button
                         type="submit"
                         className="btn btn-success w-100 fw-bold mt-2 d-inline-flex align-items-center justify-content-center gap-1"
@@ -899,6 +993,7 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
                           ✅ ตรวจสลิปผ่านแล้ว — กำลังปิดบิล...
                         </div>
                       )}
+                      {bankBox}
                       <button
                         type="submit"
                         className="btn btn-danger w-100 fw-bold mt-2 d-inline-flex align-items-center justify-content-center gap-1"
@@ -944,6 +1039,11 @@ export function ManageModal({ machine, reservation, onClose, onSuccess, promotio
                 🎫 {member.name}
                 {useFreeHour && canRedeem && <> · ใช้ {cfg.redeem_cost} แต้มแลกฟรี 1 ชม.</>}
                 {willEarn > 0 && <> · ได้เพิ่ม {willEarn} แต้ม</>}
+              </div>
+            )}
+            {willSaveBank && (
+              <div className="small mt-2 text-info">
+                ⏳ เก็บเวลาที่เหลือ ~{fmtMinutes(leftMin)} เข้าบัญชีสมาชิก
               </div>
             )}
           </div>
