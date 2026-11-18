@@ -219,9 +219,16 @@ export function Dashboard({
             ))}
           </span>
           <span className="dm-promo-when">
-            {Array.isArray(list[0].machine_numbers)
-              ? `เฉพาะโซฟาเครื่อง ${fmtMachines(list[0].machine_numbers)}`
-              : "เฉพาะโซนโซฟา"}
+            {!Array.isArray(list[0].machine_numbers) ? (
+              "เฉพาะโซนโซฟา"
+            ) : list[0].machine_numbers.length === 0 ? (
+              // ยังไม่ได้เลือกเครื่อง = แพ็กเกจนี้ยังไม่ขึ้นที่เครื่องไหน บอกให้ไปตั้งก่อน
+              <span className="dm-promo-warn">
+                ยังไม่ได้เลือกเครื่อง — ตั้งที่เมนูโปรโมชั่น › แก้เครื่อง
+              </span>
+            ) : (
+              `เฉพาะโซฟาเครื่อง ${fmtMachines(list[0].machine_numbers)}`
+            )}
             {list[0].end_date ? ` · ถึง ${fmtThaiDate(list[0].end_date)}` : ""}
           </span>
         </section>

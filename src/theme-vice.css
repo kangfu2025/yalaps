@@ -755,3 +755,12 @@ html[data-theme="vice"] .alert-warning {
   border-color: rgba(255, 204, 51, 0.45);
   color: #ffe9a8;
 }
+
+/* จอลูกค้า/จออันดับมีฉากของตัวเองอยู่แล้ว — ต้องอยู่เหนือพระอาทิตย์/ต้นปาล์มของพื้นหลังหน้า
+   (ไม่งั้นต้นปาล์มลอยทับ QR และกระดานอันดับ) */
+html[data-theme="vice"] .display-portrait,
+html[data-theme="vice"] .yl-rk-screen,
+html[data-theme="vice"] .display-fade {
+  position: relative;
+  z-index: 1;
+}

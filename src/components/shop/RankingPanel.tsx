@@ -142,11 +142,12 @@ export function RankingPanel() {
             <RefreshCw size={15} />
           </button>
           <Link
-            to="/ranking"
+            to="/display"
             target="_blank"
             className="btn btn-primary d-inline-flex align-items-center gap-1"
+            title="จอลูกค้าสลับรูปโปรโมชั่นกับอันดับทุก 1 นาที"
           >
-            <ExternalLink size={15} /> เปิดจออันดับ
+            <ExternalLink size={15} /> เปิดจอลูกค้า
           </Link>
         </div>
       </div>

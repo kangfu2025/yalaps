@@ -159,13 +159,14 @@ export function AdminSidebar({
 
         <div className="yl-sb-foot">
           <ThemeSwitch isAdmin={isAdmin} />
-          <Link to="/display" target="_blank" className="yl-sb-item" title="จอลูกค้า">
+          <Link
+            to="/display"
+            target="_blank"
+            className="yl-sb-item"
+            title="จอลูกค้า — สลับรูปโปรโมชั่นกับอันดับลูกค้า"
+          >
             <Monitor size={17} className="yl-sb-ico" />
             <span className="yl-sb-label">จอลูกค้า</span>
-          </Link>
-          <Link to="/ranking" target="_blank" className="yl-sb-item" title="จออันดับลูกค้า">
-            <Trophy size={17} className="yl-sb-ico" />
-            <span className="yl-sb-label">จออันดับ</span>
           </Link>
           <button className="yl-sb-item" onClick={onRefresh} title="รีเฟรช">
             <RefreshCw size={17} className="yl-sb-ico" />

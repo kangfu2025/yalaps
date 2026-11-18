@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { supabase } from "@/lib/supabase";
 import { buildPromptpayDataUrl, PROMPTPAY_ID } from "@/lib/promptpay";
@@ -9,21 +9,27 @@ import { submitScannedPayload } from "@/lib/slipScan";
 import { slideSeconds, type PromoMedia } from "@/lib/promoMedia";
 import { PromoSlide } from "@/components/shop/PromoSlide";
 import { formatBaht as fmtBaht } from "@/lib/priceEngine";
+import { RankingScreen, rankingPeriodsWithRows, usePublicRanking } from "./RankingScreen";
 
 const CAMERA_KEY = "yala-slip-camera";
 const MIRROR_KEY = "yala-slip-camera-mirror";
 
+/** ตอนว่าง: แสดงรูป/วิดีโอโปรโมชั่นช่วงละเท่านี้ แล้วสลับไปอันดับ */
+const PROMO_SEGMENT_MS = 60_000;
+/** อันดับช่วงละเท่านี้ (แบ่งเท่ากันระหว่างประจำเดือน/ตลอดกาล) */
+const RANK_SEGMENT_MS = 60_000;
+
+type IdleSegment = { kind: "promo" } | { kind: "rank"; i: number };
+
 /**
- * จอลูกค้า — ใช้ทั้ง /display และ /ranking
+ * จอลูกค้า /display (ลิงก์เดียว — /ranking พามาที่นี่)
  *
  * ทุกอย่างที่พนักงานส่งมาที่จอ (QR ชำระเงิน, สแกนสลิป, QR สมัครสมาชิก, ข้อมูลสมาชิก)
- * แสดงเหมือนกันทุกหน้า ต่างกันแค่ "ตอนว่าง":
- *   ไม่ส่ง idle  -> วนรูป/วิดีโอโปรโมชั่น (หน้า /display)
- *   ส่ง idle มา  -> แสดง idle แทน (หน้า /ranking ส่งกระดานอันดับมา)
+ * ขึ้นแทรกทันทีเหมือนเดิม · ตอนว่างสลับกัน:
+ *   รูป/วิดีโอโปรโมชั่น 1 นาที → อันดับประจำเดือน 30 วิ → ตลอดกาล 30 วิ → โปรชิ้นถัดไป ...
+ *   ไม่มีโปรโมชั่น = แสดงอันดับอย่างเดียว · ยังไม่มีอันดับ = แสดงโปรโมชั่นอย่างเดียว
  */
-export function DisplayScreen({ idle }: { idle?: ReactNode } = {}) {
-  // มีของแสดงตอนว่างแล้ว ไม่ต้องโหลดโปรโมชั่น (ตัดสินครั้งเดียวตอนเปิดจอ)
-  const withPromos = useRef(idle === undefined).current;
+export function DisplayScreen() {
   const [payload, setPayload] = useState<DisplayPayload>({ kind: "idle" });
   const [qrUrl, setQrUrl] = useState("");
   const [promos, setPromos] = useState<PromoMedia[]>([]);
@@ -163,7 +169,7 @@ export function DisplayScreen({ idle }: { idle?: ReactNode } = {}) {
 
   useEffect(() => {
     load();
-    if (withPromos) loadPromos();
+    loadPromos();
     const ch1 = supabase
       .channel("display-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "customer_display" }, () =>
@@ -173,14 +179,14 @@ export function DisplayScreen({ idle }: { idle?: ReactNode } = {}) {
     const ch2 = supabase
       .channel("promo-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "promo_images" }, () => {
-        if (withPromos) loadPromos();
+        loadPromos();
       })
       .subscribe();
     return () => {
       supabase.removeChannel(ch1);
       supabase.removeChannel(ch2);
     };
-  }, [withPromos]);
+  }, []);
 
   // ไปสไลด์ถัดไป — มีรายการเดียวก็อยู่กับที่ (วิดีโอจะวนของมันเอง)
   const nextSlide = useCallback(() => {
@@ -189,7 +195,9 @@ export function DisplayScreen({ idle }: { idle?: ReactNode } = {}) {
 
   // ตั้งเวลาสลับตามชนิดของรายการที่กำลังแสดง
   // วิดีโอที่อัปโหลดเองคืนค่า null = ปล่อยให้เล่นจนจบแล้วค่อยสลับ (ดู onEnded)
+  const [segment, setSegment] = useState<IdleSegment>({ kind: "promo" });
   useEffect(() => {
+    if (segment.kind !== "promo") return; // ช่วงอันดับ: รูปโปรหยุดรอ แล้วต่อชิ้นถัดไป
     if (promos.length <= 1) return;
     const cur = promos[promoIdx];
     if (!cur) return;
@@ -197,7 +205,7 @@ export function DisplayScreen({ idle }: { idle?: ReactNode } = {}) {
     if (sec === null) return;
     const t = setTimeout(nextSlide, sec * 1000);
     return () => clearTimeout(t);
-  }, [promos, promoIdx, nextSlide]);
+  }, [promos, promoIdx, nextSlide, segment.kind]);
 
   // ยอด QR
   const qrAmount = (() => {
@@ -223,6 +231,58 @@ export function DisplayScreen({ idle }: { idle?: ReactNode } = {}) {
       setQrUrl("");
     }
   }, [payload.qr_code, qrAmount, showQr]);
+
+  // ---------- ตอนว่าง: สลับโปรโมชั่น ↔ อันดับลูกค้า ----------
+  const ranking = usePublicRanking();
+  const rankPeriods = rankingPeriodsWithRows(ranking);
+  const rankKey = rankPeriods.join(",");
+  const hasPromos = promos.length > 0;
+  // หน้าที่พนักงานส่งมาแทรก (จ่ายเงิน/สลิป/สมาชิก) — ระหว่างนั้นหยุดนับเวลาสลับ
+  const interrupting =
+    showQr ||
+    (payload.kind === "slip_scan" && !!payload.slip_request_id) ||
+    payload.kind === "slip_result" ||
+    payload.kind === "join" ||
+    payload.kind === "join_done" ||
+    (payload.kind === "start" && !!payload.member) ||
+    (payload.kind === "member_card" && !!payload.member);
+
+  useEffect(() => {
+    if (interrupting) return;
+    const n = rankPeriods.length;
+    // ไม่มีอันดับให้แสดง = อยู่ที่โปรโมชั่น
+    if (n === 0) {
+      if (segment.kind !== "promo") setSegment({ kind: "promo" });
+      return;
+    }
+    // ไม่มีโปรโมชั่น = อันดับอย่างเดียว (มีสองช่วงก็สลับกันช่วงละ 30 วิ)
+    if (!hasPromos) {
+      if (segment.kind !== "rank") {
+        setSegment({ kind: "rank", i: 0 });
+        return;
+      }
+      if (n === 1) return;
+      const t = setTimeout(
+        () => setSegment({ kind: "rank", i: (segment.i + 1) % n }),
+        RANK_SEGMENT_MS / 2,
+      );
+      return () => clearTimeout(t);
+    }
+    if (segment.kind === "promo") {
+      const t = setTimeout(() => setSegment({ kind: "rank", i: 0 }), PROMO_SEGMENT_MS);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => {
+      if (segment.i + 1 < n) {
+        setSegment({ kind: "rank", i: segment.i + 1 });
+      } else {
+        nextSlide(); // กลับมาเล่นชิ้นถัดไป ไม่เริ่มชิ้นแรกใหม่
+        setSegment({ kind: "promo" });
+      }
+    }, RANK_SEGMENT_MS / n);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segment, interrupting, hasPromos, rankKey]);
 
   // ---------- ตรวจสลิป: เปิดกล้องให้ลูกค้าโชว์ QR บนสลิป ----------
   if (payload.kind === "slip_scan" && payload.slip_request_id) {
@@ -373,12 +433,23 @@ export function DisplayScreen({ idle }: { idle?: ReactNode } = {}) {
     return <MemberWelcome payload={payload} member={payload.member} mode="card" />;
   }
 
-  // Idle
-  if (!showQr && idle !== undefined) return <>{idle}</>;
+  // Idle — ช่วงอันดับลูกค้า
+  if (!showQr && segment.kind === "rank" && rankPeriods.length > 0) {
+    const period = rankPeriods[Math.min(segment.i, rankPeriods.length - 1)];
+    return (
+      <div className="display-fade" key="rank">
+        <RankingScreen ranking={ranking} period={period} periods={rankPeriods} />
+      </div>
+    );
+  }
+  // Idle — ช่วงโปรโมชั่น
   if (!showQr) {
     const current = promos[promoIdx];
     return (
-      <div className={`display-portrait display-idle${current ? " has-media" : ""}`}>
+      <div
+        key="promo"
+        className={`display-portrait display-idle display-fade${current ? " has-media" : ""}`}
+      >
         {current ? (
           <PromoSlide
             key={current.id}
