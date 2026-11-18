@@ -4,6 +4,7 @@ import { markMachinePlaying, resetMachineToIdle } from "./machines";
 import { notifyLine } from "./lineNotify";
 import { buildStartMessage, buildExtendMessage, buildCancelMessage } from "./lineMessages";
 import { getMember, redeemFreeHour, refundPoints } from "./members";
+import { hasCustomExtension } from "./billing";
 import {
   redeemHourBank,
   refundHourBank,
@@ -107,10 +108,12 @@ export async function startSession(input: StartSessionInput): Promise<Reservatio
   // หักชั่วโมงสะสมก่อนสร้างบิล (เหมือนหักแต้ม) — ชั่วโมงไม่พอจะล้มตรงนี้ ยังไม่มีบิล
   let bankTx: string | null = null;
   if (bankMin > 0 && input.memberId) {
-    const red = await redeemHourBank(input.memberId, bankMin);
+    const red = await redeemHourBank(input.memberId, bankMin, input.machineNumber);
     bankTx = red.tx_id;
     row.hour_bank_used_min = bankMin;
     row.hour_bank_expires_at = red.expires_at;
+    // ชั่วโมงที่หักมาใช้ได้ที่เครื่องไหน — ติดไปกับบิล ไว้ตอนเก็บเวลาที่เหลือคืน
+    if (Array.isArray(red.machines)) row.package_machines = red.machines;
   }
 
   const { data, error } = await supabase.from("reservations").insert(row).select().single();
@@ -163,14 +166,21 @@ export async function startSession(input: StartSessionInput): Promise<Reservatio
   return data as Reservation;
 }
 
+/**
+ * ต่อเวลา
+ * @param customPrice บิลแพ็กเกจ: ค่าต่อเวลาที่พนักงานกรอก (บวกเข้าค่าเครื่องตอนเช็คบิล)
+ *                    บิลรายชั่วโมงไม่ต้องส่ง — ค่าเครื่องคิดจากชั่วโมงรวมเหมือนเดิม
+ */
 export async function extendTime(
   reservation: Reservation,
   addHours: number,
   addCash: number,
   addTransfer: number,
+  customPrice?: number,
 ) {
   const newExt = Number(reservation.extended_hours) + addHours;
   const newEndMs = (reservation.end_time_ms ?? Date.now()) + addHours * 3600 * 1000;
+  const custom = hasCustomExtension(reservation) && customPrice !== undefined;
   const { error } = await supabase
     .from("reservations")
     .update({
@@ -178,6 +188,11 @@ export async function extendTime(
       end_time_ms: newEndMs,
       advance_cash: Number(reservation.advance_cash) + addCash,
       advance_transfer: Number(reservation.advance_transfer) + addTransfer,
+      ...(custom
+        ? {
+            package_extra_price: Number(reservation.package_extra_price) + Math.max(0, customPrice),
+          }
+        : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", reservation.id);

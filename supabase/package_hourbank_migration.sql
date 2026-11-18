@@ -7,6 +7,12 @@
 --   - เก็บชั่วโมงที่เหลือได้เฉพาะบิลแพ็กเกจ (และบิลที่เปิดด้วยชั่วโมงสะสม)
 --   - เก็บตามนาทีจริง ไม่ปัด
 --   - ชั่วโมงที่เก็บหมดอายุ 30 วันนับจากวันที่เก็บ ใช้ก้อนที่ใกล้หมดก่อน
+-- อัปเดต 18 พ.ย. 2569 (รันไฟล์นี้ซ้ำได้เลย):
+--   - แต่ละโปรเลือกได้ว่าใช้กับเครื่องโซฟาเครื่องไหน (เช่น เฉพาะเครื่องที่มีเกม GTA)
+--     โปรที่ยังไม่ได้เลือกเครื่อง = ยังไม่ขึ้นให้เลือกที่เครื่องไหน
+--   - ราคารายชั่วโมงปกติ/โปรรายชั่วโมง (เช่น โปร 89) ใช้ได้ทุกเครื่องเหมือนเดิม
+--   - ต่อเวลาบิลแพ็กเกจ: พนักงานกรอกราคาเอง (package_extra_price)
+--   - ชั่วโมงสะสมจำว่าใช้ได้ที่เครื่องไหน (ตามโปรที่ซื้อ)
 --
 -- ไฟล์นี้ "เพิ่ม" อย่างเดียว ไม่แก้ตารางหรือฟังก์ชันเดิม
 -- เงินค่าแพ็กเกจยังเข้า reservations.advance_cash/transfer เหมือนเดิม
@@ -30,6 +36,8 @@ create table if not exists public.price_packages (
   check (end_date is null or end_date >= start_date)
 );
 create index if not exists price_packages_zone_idx on public.price_packages(zone, active, start_date);
+-- เลขเครื่องโซฟาที่โปรนี้ใช้ได้ (ว่าง = ยังไม่ได้เลือกเครื่อง → ยังเปิดแพ็กเกจนี้ไม่ได้)
+alter table public.price_packages add column if not exists machine_numbers int[] not null default '{}';
 
 -- ราคาที่ตกลงตอนเปิดเครื่อง เก็บติดบิลไว้ (ปิดบิลไม่คำนวณใหม่)
 alter table public.reservations add column if not exists package_id uuid references public.price_packages(id) on delete set null;
@@ -39,6 +47,11 @@ alter table public.reservations add column if not exists package_minutes int;
 -- เปิดเครื่องด้วยชั่วโมงสะสม: ใช้ไปกี่นาที และก้อนที่ใช้หมดอายุเมื่อไหร่
 alter table public.reservations add column if not exists hour_bank_used_min int not null default 0;
 alter table public.reservations add column if not exists hour_bank_expires_at timestamptz;
+-- เครื่องที่ชั่วโมงของบิลนี้ใช้ได้ (คัดลอกจากโปรตอนเปิดบิล — ใช้ตอนเก็บชั่วโมงที่เหลือ)
+alter table public.reservations add column if not exists package_machines int[];
+-- ค่าต่อเวลาของบิลแพ็กเกจที่พนักงานกรอกเอง (รวมทุกครั้งที่ต่อ)
+-- null = บิลที่เปิดก่อนอัปเดตนี้ → ระบบคิดต่อเวลาแบบรายชั่วโมงเหมือนเดิม
+alter table public.reservations add column if not exists package_extra_price numeric(10,2);
 
 alter table public.billing_logs add column if not exists package_name text;
 alter table public.billing_logs add column if not exists hour_bank_used_min int not null default 0;
@@ -126,9 +139,17 @@ begin
     if new.zone::text <> p.zone then
       raise exception 'แพ็กเกจนี้ใช้ได้เฉพาะโซนโซฟา';
     end if;
+    if not (new.machine_number = any(p.machine_numbers)) then
+      raise exception 'แพ็กเกจ "%" ใช้ได้เฉพาะเครื่อง % — เครื่อง % ไม่ได้อยู่ในโปรนี้',
+        p.group_name,
+        coalesce(nullif(array_to_string(p.machine_numbers, ', '), ''), '(ยังไม่ได้เลือกเครื่อง)'),
+        new.machine_number;
+    end if;
     new.package_name    := p.group_name || ' · ' || p.label;
     new.package_price   := p.price;
     new.package_minutes := p.minutes;
+    new.package_machines := p.machine_numbers;
+    new.package_extra_price := 0;
     new.hour_bank_used_min := 0;
     new.hour_bank_expires_at := null;
   elsif coalesce(new.hour_bank_used_min, 0) > 0 then
@@ -136,13 +157,22 @@ begin
     if new.zone::text <> 'sofa' then
       raise exception 'ชั่วโมงสะสมใช้ได้เฉพาะโซนโซฟา';
     end if;
+    -- package_machines มาจาก hour_bank_redeem (ก้อนที่หักใช้ได้ที่เครื่องไหน) · ว่าง = ทุกเครื่อง
+    if cardinality(coalesce(new.package_machines, '{}')) > 0
+       and not (new.machine_number = any(new.package_machines)) then
+      raise exception 'ชั่วโมงสะสมนี้ใช้ได้เฉพาะเครื่อง %', array_to_string(new.package_machines, ', ');
+    end if;
     new.package_name    := 'ใช้ชั่วโมงสะสม';
     new.package_price   := 0;
     new.package_minutes := new.hour_bank_used_min;
+    new.package_machines := coalesce(new.package_machines, '{}');
+    new.package_extra_price := 0;
   else
     new.package_name := null;
     new.package_price := null;
     new.package_minutes := null;
+    new.package_machines := null;
+    new.package_extra_price := null;
     new.hour_bank_used_min := 0;
     new.hour_bank_expires_at := null;
   end if;
@@ -165,8 +195,18 @@ begin
   if (new.package_id is distinct from old.package_id and new.package_id is not null)
      or new.package_price is distinct from old.package_price
      or new.package_minutes is distinct from old.package_minutes
-     or new.hour_bank_used_min is distinct from old.hour_bank_used_min then
+     or new.hour_bank_used_min is distinct from old.hour_bank_used_min
+     or new.package_machines is distinct from old.package_machines then
     raise exception 'แก้แพ็กเกจของบิลที่เปิดแล้วไม่ได้';
+  end if;
+  -- ค่าต่อเวลาที่พนักงานกรอก: มีได้เฉพาะบิลแพ็กเกจที่เปิดหลังอัปเดตนี้ และห้ามติดลบ
+  if new.package_extra_price is distinct from old.package_extra_price then
+    if old.package_extra_price is null or new.package_extra_price is null then
+      raise exception 'บิลนี้ไม่ได้ใช้ค่าต่อเวลาแบบกรอกเอง';
+    end if;
+    if new.package_extra_price < 0 then
+      raise exception 'ค่าต่อเวลาติดลบไม่ได้';
+    end if;
   end if;
   return new;
 end;
@@ -196,6 +236,8 @@ create table if not exists public.hour_bank_lots (
   check (minutes_left <= minutes_total)
 );
 create index if not exists hour_bank_lots_member_idx on public.hour_bank_lots(member_id, expires_at);
+-- เครื่องโซฟาที่ใช้ก้อนนี้ได้ (ว่าง = ทุกเครื่อง — ก้อนที่เก็บก่อนอัปเดตนี้)
+alter table public.hour_bank_lots add column if not exists machine_numbers int[] not null default '{}';
 
 create table if not exists public.hour_bank_tx (
   id              uuid primary key default gen_random_uuid(),
@@ -260,7 +302,8 @@ begin
     'lots', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', id, 'minutes_left', minutes_left, 'minutes_total', minutes_total,
-               'expires_at', expires_at, 'created_at', created_at) order by expires_at)
+               'expires_at', expires_at, 'created_at', created_at,
+               'machine_numbers', machine_numbers) order by expires_at)
       from public.hour_bank_lots
       where member_id = p_member_id and minutes_left > 0 and expires_at > now()), '[]'::jsonb)
   );
@@ -268,6 +311,53 @@ end;
 $$;
 revoke all on function public.hour_bank_balance(uuid) from public, anon;
 grant execute on function public.hour_bank_balance(uuid) to authenticated;
+
+-- ยอดที่ใช้ได้ที่เครื่องโซฟาเครื่องนี้ (นาที)
+create or replace function public.hour_bank_available_at(p_member_id uuid, p_machine_number int)
+returns int
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(sum(minutes_left), 0)::int
+  from public.hour_bank_lots
+  where member_id = p_member_id and minutes_left > 0 and expires_at > now()
+    and (cardinality(machine_numbers) = 0 or p_machine_number = any(machine_numbers))
+$$;
+revoke all on function public.hour_bank_available_at(uuid, int) from public, anon;
+
+-- ยอดที่ใช้ได้ที่เครื่องนี้ + ก้อนที่ใช้ได้ (หน้าต่างเปิดเครื่องใช้)
+create or replace function public.hour_bank_balance(p_member_id uuid, p_machine_number int)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if public.pkg_role() is null then
+    raise exception 'ไม่มีสิทธิ์ใช้งาน' using errcode = '42501';
+  end if;
+  return jsonb_build_object(
+    'minutes', public.hour_bank_available_at(p_member_id, p_machine_number),
+    'total', public.hour_bank_available(p_member_id),
+    'next_expiry', (select min(expires_at) from public.hour_bank_lots
+                    where member_id = p_member_id and minutes_left > 0 and expires_at > now()
+                      and (cardinality(machine_numbers) = 0 or p_machine_number = any(machine_numbers))),
+    'lots', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'id', id, 'minutes_left', minutes_left, 'minutes_total', minutes_total,
+               'expires_at', expires_at, 'created_at', created_at,
+               'machine_numbers', machine_numbers) order by expires_at)
+      from public.hour_bank_lots
+      where member_id = p_member_id and minutes_left > 0 and expires_at > now()
+        and (cardinality(machine_numbers) = 0 or p_machine_number = any(machine_numbers))), '[]'::jsonb)
+  );
+end;
+$$;
+revoke all on function public.hour_bank_balance(uuid, int) from public, anon;
+grant execute on function public.hour_bank_balance(uuid, int) to authenticated;
 
 -- ---------- เก็บเวลาที่เหลือของบิลเข้าบัญชีสมาชิก ----------
 -- เวลาที่เหลือคิดที่ฐานข้อมูลเอง = เวลาหมดของบิล − ตอนนี้ (นาทีเต็ม)
@@ -333,10 +423,12 @@ begin
              else now() + interval '30 days'
            end;
 
+  -- ก้อนใหม่ใช้ได้ที่เครื่องเดียวกับโปรของบิลนี้
   insert into public.hour_bank_lots
     (member_id, zone, minutes_total, minutes_left, expires_at, source_reservation_id,
-     created_by, created_by_name)
-  values (r.member_id, 'sofa', v_min, v_min, v_exp, r.id, auth.uid(), public.pkg_actor_name())
+     machine_numbers, created_by, created_by_name)
+  values (r.member_id, 'sofa', v_min, v_min, v_exp, r.id, coalesce(r.package_machines, '{}'),
+          auth.uid(), public.pkg_actor_name())
   returning id into v_lot;
 
   v_bal := public.hour_bank_available(r.member_id);
@@ -351,8 +443,10 @@ $$;
 revoke all on function public.hour_bank_save(uuid) from public, anon;
 grant execute on function public.hour_bank_save(uuid) to authenticated;
 
--- ---------- ใช้ชั่วโมงสะสม (หักก้อนที่ใกล้หมดอายุก่อน) ----------
-create or replace function public.hour_bank_redeem(p_member_id uuid, p_minutes int)
+-- ---------- ใช้ชั่วโมงสะสมที่เครื่องนี้ (หักก้อนที่ใกล้หมดอายุก่อน) ----------
+-- หักเฉพาะก้อนที่ใช้ได้ที่เครื่องนี้ · คืน machines = เครื่องที่บิลนี้ใช้ได้ (ไว้เก็บเวลาที่เหลือ)
+drop function if exists public.hour_bank_redeem(uuid, int);
+create or replace function public.hour_bank_redeem(p_member_id uuid, p_minutes int, p_machine_number int)
 returns jsonb
 language plpgsql
 security definer
@@ -366,6 +460,8 @@ declare
   v_first timestamptz;
   v_tx uuid;
   v_bal int;
+  v_any boolean := false;
+  v_machines int[] := '{}';
   l record;
 begin
   if public.pkg_role() is null then
@@ -374,18 +470,23 @@ begin
   if p_minutes is null or p_minutes <= 0 then
     raise exception 'จำนวนนาทีต้องมากกว่า 0';
   end if;
+  if p_machine_number is null then
+    raise exception 'ต้องระบุเครื่องที่จะใช้ชั่วโมงสะสม';
+  end if;
 
   -- ล็อกก้อนของสมาชิกคนนี้ กันสองเครื่องใช้ชั่วโมงพร้อมกัน
   perform 1 from public.hour_bank_lots where member_id = p_member_id for update;
 
-  v_have := public.hour_bank_available(p_member_id);
+  v_have := public.hour_bank_available_at(p_member_id, p_machine_number);
   if v_have < p_minutes then
-    raise exception 'ชั่วโมงสะสมไม่พอ (มี % นาที ต้องการ % นาที)', v_have, p_minutes;
+    raise exception 'ชั่วโมงสะสมที่ใช้ได้ที่เครื่อง % ไม่พอ (มี % นาที ต้องการ % นาที)',
+      p_machine_number, v_have, p_minutes;
   end if;
 
   for l in
-    select id, minutes_left, expires_at from public.hour_bank_lots
+    select id, minutes_left, expires_at, machine_numbers from public.hour_bank_lots
     where member_id = p_member_id and minutes_left > 0 and expires_at > now()
+      and (cardinality(machine_numbers) = 0 or p_machine_number = any(machine_numbers))
     order by expires_at, created_at
   loop
     exit when v_need <= 0;
@@ -393,21 +494,28 @@ begin
     update public.hour_bank_lots set minutes_left = minutes_left - v_take where id = l.id;
     v_alloc := v_alloc || jsonb_build_object('lot', l.id, 'min', v_take);
     v_first := coalesce(v_first, l.expires_at);
+    if cardinality(l.machine_numbers) = 0 then
+      v_any := true;
+    else
+      v_machines := array(select distinct unnest(v_machines || l.machine_numbers) order by 1);
+    end if;
     v_need := v_need - v_take;
   end loop;
 
   v_bal := public.hour_bank_available(p_member_id);
   insert into public.hour_bank_tx
-    (member_id, delta_min, balance_after, reason, allocations, created_by, created_by_name)
-  values (p_member_id, -p_minutes, v_bal, 'redeem', v_alloc, auth.uid(), public.pkg_actor_name())
+    (member_id, delta_min, balance_after, reason, allocations, note, created_by, created_by_name)
+  values (p_member_id, -p_minutes, v_bal, 'redeem', v_alloc, 'เครื่อง ' || p_machine_number,
+          auth.uid(), public.pkg_actor_name())
   returning id into v_tx;
 
   return jsonb_build_object('tx_id', v_tx, 'minutes', p_minutes, 'expires_at', v_first,
-                            'balance', v_bal);
+                            'balance', v_bal,
+                            'machines', to_jsonb(case when v_any then '{}'::int[] else v_machines end));
 end;
 $$;
-revoke all on function public.hour_bank_redeem(uuid, int) from public, anon;
-grant execute on function public.hour_bank_redeem(uuid, int) to authenticated;
+revoke all on function public.hour_bank_redeem(uuid, int, int) from public, anon;
+grant execute on function public.hour_bank_redeem(uuid, int, int) to authenticated;
 
 -- ผูกรายการใช้ชั่วโมงเข้ากับบิลที่เพิ่งเปิด
 create or replace function public.hour_bank_link(p_tx_id uuid, p_reservation_id uuid)

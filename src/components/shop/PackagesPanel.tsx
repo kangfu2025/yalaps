@@ -1,10 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
-import { Package, Plus, Trash2, Power, Pencil, X, Check, AlertTriangle } from "lucide-react";
+import {
+  Package,
+  Plus,
+  Trash2,
+  Power,
+  Pencil,
+  X,
+  Check,
+  AlertTriangle,
+  Gamepad2,
+} from "lucide-react";
+import { fetchAllMachines } from "@/lib/machines";
 import { formatBaht } from "@/lib/priceEngine";
 import {
   listPackages,
   savePackage,
   setPackageActive,
+  setPackagesMachines,
+  packagesHaveMachines,
+  fmtMachines,
   deletePackage,
   packageState,
   bangkokToday,
@@ -41,6 +55,42 @@ function tierLabel(t: TierDraft): string {
   return t.label.trim() || (Number.isFinite(h) && h > 0 ? `${h} ชม.` : "");
 }
 
+/** ปุ่มเลือกเครื่องโซฟา (กดเปิด/ปิดทีละเครื่อง) */
+function MachinePicker({
+  all,
+  value,
+  onChange,
+  idPrefix,
+}: {
+  all: number[];
+  value: number[];
+  onChange: (v: number[]) => void;
+  idPrefix: string;
+}) {
+  if (all.length === 0) return <span className="small text-muted">กำลังโหลดรายชื่อเครื่อง...</span>;
+  return (
+    <div className="yl-mpick" role="group" aria-label="เลือกเครื่องโซฟา">
+      {all.map((n) => {
+        const on = value.includes(n);
+        return (
+          <button
+            key={n}
+            id={`${idPrefix}${n}`}
+            type="button"
+            aria-pressed={on}
+            className={`yl-mpick-btn ${on ? "is-on" : ""}`}
+            onClick={() =>
+              onChange(on ? value.filter((x) => x !== n) : [...value, n].sort((a, b) => a - b))
+            }
+          >
+            {on ? <Check size={14} aria-hidden /> : <Gamepad2 size={14} aria-hidden />} เครื่อง {n}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function PackagesPanel() {
   const [items, setItems] = useState<PricePackage[] | null>([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +102,10 @@ export function PackagesPanel() {
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState("");
   const [tiers, setTiers] = useState<TierDraft[]>([{ ...EMPTY_TIER }]);
+  // เครื่องโซฟาที่มีเกมของโปรนี้ (เช่น เครื่องที่ลง GTA)
+  const [sofaNums, setSofaNums] = useState<number[]>([]);
+  const [machines, setMachines] = useState<number[]>([]);
+  const [groupEdit, setGroupEdit] = useState<{ key: string; nums: number[] } | null>(null);
 
   const [editId, setEditId] = useState<string | null>(null);
   const [edit, setEdit] = useState<TierDraft & { start: string; end: string }>({
@@ -73,7 +127,20 @@ export function PackagesPanel() {
 
   useEffect(() => {
     refresh();
+    fetchAllMachines()
+      .then((all) =>
+        setSofaNums(
+          all
+            .filter((m) => m.zone === "sofa")
+            .map((m) => m.machine_number)
+            .sort((a, b) => a - b),
+        ),
+      )
+      .catch((e) => console.warn("[packages] machines:", e));
   }, []);
+
+  /** ฐานข้อมูลรองรับการเลือกเครื่องแล้ว (รัน SQL รุ่น 18 พ.ย.) */
+  const machinesReady = packagesHaveMachines(items ?? []);
 
   /** รวมเป็นกลุ่มโปร (ชื่อ + ช่วงวันที่เดียวกัน) ให้อ่านเป็นก้อนเหมือนโปสเตอร์ */
   const groups = useMemo(() => {
@@ -87,6 +154,8 @@ export function PackagesPanel() {
       name: list[0].group_name,
       start: list[0].start_date,
       end: list[0].end_date,
+      // ทุกแพ็กเกจในโปรเดียวกันใช้เครื่องชุดเดียวกัน (บันทึกพร้อมกันทั้งกลุ่ม)
+      machineNums: list[0].machine_numbers,
       list: list.sort((a, b) => a.sort_order - b.sort_order || a.minutes - b.minutes),
     }));
   }, [items]);
@@ -116,6 +185,9 @@ export function PackagesPanel() {
       const err = validTier(t);
       if (err) return alert(`แพ็กเกจแถวที่ ${i + 1}: ${err}`);
     }
+    if (machinesReady && machines.length === 0) {
+      return alert("เลือกเครื่องที่ใช้โปรนี้ได้อย่างน้อย 1 เครื่อง (เช่น เครื่องที่มีเกม GTA)");
+    }
     setBusy(true);
     try {
       for (const [i, t] of filled.entries()) {
@@ -128,14 +200,33 @@ export function PackagesPanel() {
           end_date: endDate || null,
           active: true,
           sort_order: i + 1,
+          machine_numbers: machinesReady ? machines : undefined,
         });
       }
       setGroup("");
+      setMachines([]);
       setTiers([{ ...EMPTY_TIER }]);
       await refresh();
     } catch (err) {
       alert("บันทึกแพ็กเกจไม่สำเร็จ: " + (err instanceof Error ? err.message : String(err)));
       await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveGroupMachines(ids: string[]) {
+    if (!groupEdit) return;
+    if (groupEdit.nums.length === 0) {
+      if (!confirm("ไม่เลือกเครื่องเลย = โปรนี้จะไม่ขึ้นให้เลือกที่เครื่องไหน ยืนยัน?")) return;
+    }
+    setBusy(true);
+    try {
+      await setPackagesMachines(ids, groupEdit.nums);
+      setGroupEdit(null);
+      await refresh();
+    } catch (e) {
+      alert("บันทึกเครื่องไม่สำเร็จ: " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
     }
@@ -224,8 +315,8 @@ export function PackagesPanel() {
         <Package size={18} /> แพ็กเกจราคา (โซนโซฟา)
       </h5>
       <p className="small text-muted mb-3">
-        ตั้งราคาเองและกำหนดชั่วโมงที่ได้ · พนักงานเลือกได้ตอนเปิดเครื่อง · เล่นไม่หมด
-        เก็บเวลาที่เหลือเข้าบัญชีสมาชิกได้ 30 วัน
+        ตั้งราคาเองและกำหนดชั่วโมงที่ได้ · ใช้เฉพาะเครื่องที่เลือก (เช่น เครื่องที่มีเกม GTA) ·
+        เล่นไม่หมด เก็บเวลาที่เหลือเข้าบัญชีสมาชิกได้ 30 วัน (ใช้ต่อได้ที่เครื่องในโปรเดียวกัน)
       </p>
 
       {error && (
@@ -277,6 +368,28 @@ export function PackagesPanel() {
                 onChange={(e) => setEndDate(e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="mt-3">
+            <div className="form-label fw-bold small mb-1">
+              ใช้กับเครื่องไหน{" "}
+              <span className="fw-normal text-muted">
+                (เช่น เครื่องที่มีเกม GTA — เครื่องอื่นใช้ราคารายชั่วโมง/โปรรายชั่วโมงตามเดิม)
+              </span>
+            </div>
+            {machinesReady ? (
+              <MachinePicker
+                all={sofaNums}
+                value={machines}
+                onChange={setMachines}
+                idPrefix="pkgMachine"
+              />
+            ) : (
+              <div className="alert alert-warning py-2 small mb-0">
+                ฐานข้อมูลยังไม่รองรับการเลือกเครื่อง — รัน <code>{PACKAGES_SQL_FILE}</code> อีกครั้ง
+                (ระหว่างนี้แพ็กเกจใช้ได้ทุกเครื่องโซฟา)
+              </div>
+            )}
           </div>
 
           <div className="yl-tier-head mt-3">
@@ -361,7 +474,53 @@ export function PackagesPanel() {
                 <span className="small text-muted">
                   {fmtThaiDate(g.start)} → {g.end ? fmtThaiDate(g.end) : "ไม่กำหนด"}
                 </span>
+                {Array.isArray(g.machineNums) &&
+                  (g.machineNums.length > 0 ? (
+                    <span className="yl-pkg-machines">
+                      <Gamepad2 size={13} aria-hidden /> เครื่อง {fmtMachines(g.machineNums)}
+                    </span>
+                  ) : (
+                    <span className="badge bg-danger">
+                      ยังไม่ได้เลือกเครื่อง — ยังไม่ขึ้นให้เลือก
+                    </span>
+                  ))}
+                {machinesReady && groupEdit?.key !== g.key && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-primary ms-auto"
+                    onClick={() => setGroupEdit({ key: g.key, nums: [...(g.machineNums ?? [])] })}
+                  >
+                    <Gamepad2 size={14} /> แก้เครื่อง
+                  </button>
+                )}
               </div>
+              {groupEdit?.key === g.key && (
+                <div className="yl-pkg-medit">
+                  <MachinePicker
+                    all={sofaNums}
+                    value={groupEdit.nums}
+                    onChange={(nums) => setGroupEdit({ key: g.key, nums })}
+                    idPrefix={`grp${g.list[0].id.slice(0, 6)}m`}
+                  />
+                  <div className="d-flex gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-success"
+                      disabled={busy}
+                      onClick={() => saveGroupMachines(g.list.map((x) => x.id))}
+                    >
+                      <Check size={14} /> บันทึกเครื่อง
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary"
+                      onClick={() => setGroupEdit(null)}
+                    >
+                      <X size={14} /> ยกเลิก
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="table-responsive">
                 <table className="table table-sm align-middle mb-0">
                   <tbody>

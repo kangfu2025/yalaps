@@ -65,14 +65,15 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
 
   const isSofa = machine?.zone === "sofa";
 
-  // แพ็กเกจที่เปิดขายวันนี้ (ยังไม่ได้รัน SQL = ได้รายการว่าง แท็บแพ็กเกจไม่ขึ้น)
+  // แพ็กเกจที่ขายวันนี้ "เฉพาะที่ใช้กับเครื่องนี้ได้" (เช่น เครื่องที่มีเกม GTA)
+  // เครื่องที่ไม่อยู่ในโปรไหนเลย = ไม่มีแท็บแพ็กเกจ ใช้รายชั่วโมง/โปรรายชั่วโมงตามเดิม
   useEffect(() => {
     if (!machine || machine.zone !== "sofa") {
       setPackages([]);
       return;
     }
     let alive = true;
-    listOpenPackages().then((list) => {
+    listOpenPackages(machine.machine_number).then((list) => {
       if (alive) setPackages(list);
     });
     return () => {
@@ -80,13 +81,14 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
     };
   }, [machine]);
 
-  // ชั่วโมงสะสมของสมาชิกที่เลือก
+  // ชั่วโมงสะสมของสมาชิกที่เลือก — นับเฉพาะก้อนที่ใช้ได้ที่เครื่องนี้
   const memberId = member?.id ?? null;
+  const machineNumber = machine?.machine_number;
   useEffect(() => {
     setBank(null);
-    if (!memberId || !isSofa) return;
+    if (!memberId || !isSofa || machineNumber === undefined) return;
     let alive = true;
-    getHourBank(memberId)
+    getHourBank(memberId, machineNumber)
       .then((b) => {
         if (!alive) return;
         setBank(b);
@@ -97,7 +99,7 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
     return () => {
       alive = false;
     };
-  }, [memberId, isSofa]);
+  }, [memberId, isSofa, machineNumber]);
 
   // โหมดที่เลือกใช้ไม่ได้แล้ว (ถอดสมาชิก / ชั่วโมงหมด / ไม่มีแพ็กเกจ) -> กลับรายชั่วโมง
   const bankAvail = bank?.minutes ?? 0;
@@ -345,7 +347,13 @@ export function StartModal({ machine, onClose, onSuccess, promotion = null }: Pr
                   </span>
                   {bankAvail > 0 && (
                     <span className="badge bg-info-subtle text-info-emphasis border border-info-subtle">
-                      <PiggyBank size={11} className="yl-ic" /> ชั่วโมงสะสม {fmtMinutes(bankAvail)}
+                      <PiggyBank size={11} className="yl-ic" /> ชั่วโมงสะสมใช้ที่เครื่องนี้{" "}
+                      {fmtMinutes(bankAvail)}
+                    </span>
+                  )}
+                  {bankAvail === 0 && (bank?.total ?? 0) > 0 && (
+                    <span className="small text-muted">
+                      มีชั่วโมงสะสม {fmtMinutes(bank?.total ?? 0)} แต่ใช้ได้เฉพาะเครื่องในโปร
                     </span>
                   )}
                 </div>

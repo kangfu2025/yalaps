@@ -48,18 +48,32 @@ export function isPackageBill(r: Pick<Reservation, "package_price">): boolean {
   return r.package_price !== null && r.package_price !== undefined;
 }
 
+/** บิลนี้ต่อเวลาแบบพนักงานกรอกราคาเอง (บิลแพ็กเกจที่เปิดหลังอัปเดต 18 พ.ย.) */
+export function hasCustomExtension(
+  r: Pick<Reservation, "package_price" | "package_extra_price">,
+): boolean {
+  return isPackageBill(r) && r.package_extra_price !== null && r.package_extra_price !== undefined;
+}
+
 /**
  * ค่าเครื่องของบิล — ใช้ที่เดียวทั้งการ์ดเครื่องและตอนปิดบิล
- *  - บิลปกติ: คิดรายชั่วโมงจากเวลารวมเหมือนเดิม
- *  - บิลแพ็กเกจ: ราคาแพ็กเกจที่ตกลงตอนเปิด + เวลาต่อเพิ่มคิดรายชั่วโมง
- *    (เปิดด้วยชั่วโมงสะสม package_price = 0 จ่ายเฉพาะเวลาต่อเพิ่ม)
+ *  - บิลปกติ: คิดรายชั่วโมงจากเวลารวมเหมือนเดิม (โปรรายชั่วโมง เช่น โปร 89 ใช้ตรงนี้)
+ *  - บิลแพ็กเกจ: ราคาแพ็กเกจที่ตกลงตอนเปิด + ค่าต่อเวลาที่พนักงานกรอก
+ *    (เปิดด้วยชั่วโมงสะสม package_price = 0 จ่ายเฉพาะค่าต่อเวลา)
+ *    บิลแพ็กเกจที่เปิดก่อนอัปเดต (ไม่มี package_extra_price) ต่อเวลาคิดรายชั่วโมงเหมือนเดิม
  */
 export function machinePriceOf(
-  r: Pick<Reservation, "zone" | "total_hours" | "extended_hours" | "package_price">,
+  r: Pick<
+    Reservation,
+    "zone" | "total_hours" | "extended_hours" | "package_price" | "package_extra_price"
+  >,
   override?: PriceOverride | null,
 ): number {
   if (isPackageBill(r)) {
-    return Number(r.package_price) + calcPrice(r.zone, Number(r.extended_hours), override ?? null);
+    const extra = hasCustomExtension(r)
+      ? Number(r.package_extra_price)
+      : calcPrice(r.zone, Number(r.extended_hours), override ?? null);
+    return Number(r.package_price) + extra;
   }
   return calcPrice(r.zone, Number(r.total_hours), override ?? null);
 }

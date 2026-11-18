@@ -99,6 +99,10 @@ export interface Reservation {
   /** นาทีที่ดึงจากชั่วโมงสะสมมาเปิดบิลนี้ */
   hour_bank_used_min?: number;
   hour_bank_expires_at?: string | null;
+  /** เครื่องโซฟาที่ชั่วโมงของบิลนี้ใช้ได้ (คัดลอกจากโปรตอนเปิด) */
+  package_machines?: number[] | null;
+  /** ค่าต่อเวลาที่พนักงานกรอกเอง (บิลแพ็กเกจ) · null = บิลเก่า คิดต่อเวลาแบบรายชั่วโมง */
+  package_extra_price?: number | null;
   created_at: string;
   updated_at: string;
 }

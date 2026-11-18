@@ -5,6 +5,7 @@ import {
   listHourBankTx,
   fmtMinutes,
   fmtThaiDate,
+  fmtMachines,
   type HourBankBalance,
   type HourBankTx,
 } from "@/lib/packages";
@@ -60,7 +61,12 @@ export function HourBankCard({ memberId }: { memberId: string }) {
         <ul className="yl-bank-lots">
           {bank.lots.map((l) => (
             <li key={l.id}>
-              <span>{fmtMinutes(l.minutes_left)}</span>
+              <span>
+                {fmtMinutes(l.minutes_left)}
+                {l.machine_numbers && l.machine_numbers.length > 0 && (
+                  <small> · เครื่อง {fmtMachines(l.machine_numbers)}</small>
+                )}
+              </span>
               <span>หมดอายุ {fmtThaiDate(l.expires_at)}</span>
             </li>
           ))}

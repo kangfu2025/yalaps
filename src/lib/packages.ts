@@ -22,10 +22,28 @@ export interface PricePackage {
   end_date: string | null;
   active: boolean;
   sort_order: number;
+  /** เลขเครื่องโซฟาที่โปรนี้ใช้ได้ · ว่าง = ยังไม่ได้เลือก · undefined = ยังไม่ได้รัน SQL อัปเดต */
+  machine_numbers?: number[];
   created_at?: string;
 }
 
 export type PackageInput = Omit<PricePackage, "id" | "zone" | "created_at">;
+
+/** ฐานข้อมูลรองรับการเลือกเครื่องแล้วหรือยัง (รัน package_hourbank_migration.sql รุ่น 18 พ.ย.) */
+export function packagesHaveMachines(list: PricePackage[]): boolean {
+  return list.length === 0 || list.some((p) => Array.isArray(p.machine_numbers));
+}
+
+/** โปรนี้ใช้กับเครื่องนี้ได้ไหม (ถ้ายังไม่ได้อัปเดตฐานข้อมูล = ใช้ได้ทุกเครื่องโซฟาแบบเดิม) */
+export function packageForMachine(p: PricePackage, machineNumber: number): boolean {
+  if (!Array.isArray(p.machine_numbers)) return true;
+  return p.machine_numbers.includes(machineNumber);
+}
+
+export function fmtMachines(nums: number[] | null | undefined): string {
+  if (!nums || nums.length === 0) return "";
+  return [...nums].sort((a, b) => a - b).join(", ");
+}
 
 export interface HourBankLot {
   id: string;
@@ -33,12 +51,16 @@ export interface HourBankLot {
   minutes_total: number;
   expires_at: string;
   created_at: string;
+  /** ใช้ได้ที่เครื่องไหน · ว่าง = ทุกเครื่อง */
+  machine_numbers?: number[];
 }
 
 export interface HourBankBalance {
   minutes: number;
   next_expiry: string | null;
   lots: HourBankLot[];
+  /** ยอดรวมทุกเครื่อง (มีเมื่อถามยอดของเครื่องใดเครื่องหนึ่ง) */
+  total?: number;
 }
 
 export interface HourBankTx {
@@ -140,16 +162,21 @@ export async function listPackages(): Promise<PricePackage[] | null> {
     ...p,
     price: Number(p.price),
     minutes: Number(p.minutes),
+    machine_numbers: Array.isArray(p.machine_numbers) ? p.machine_numbers.map(Number) : undefined,
   }));
 }
 
-/** แพ็กเกจที่ใช้เปิดเครื่องได้วันนี้ (โซฟา) เรียงตามกลุ่มแล้วตามลำดับ */
-export async function listOpenPackages(): Promise<PricePackage[]> {
+/**
+ * แพ็กเกจที่ขายวันนี้ เรียงตามกลุ่มแล้วตามลำดับ
+ * ใส่เลขเครื่อง = เฉพาะโปรที่ใช้กับเครื่องนั้นได้ (เช่น เฉพาะเครื่องที่มีเกม GTA)
+ */
+export async function listOpenPackages(machineNumber?: number): Promise<PricePackage[]> {
   const all = await listPackages().catch(() => null);
   if (!all) return [];
   const day = bangkokToday();
   return all
     .filter((p) => packageOpenOn(p, day))
+    .filter((p) => machineNumber === undefined || packageForMachine(p, machineNumber))
     .sort(
       (a, b) =>
         a.group_name.localeCompare(b.group_name, "th") ||
@@ -169,6 +196,8 @@ export async function savePackage(input: PackageInput, id?: string): Promise<voi
     end_date: input.end_date || null,
     active: input.active,
     sort_order: input.sort_order,
+    // ส่งเฉพาะเมื่อฐานข้อมูลรองรับแล้ว ไม่งั้นบันทึกไม่ได้ทั้งแถว
+    ...(input.machine_numbers ? { machine_numbers: input.machine_numbers } : {}),
     updated_at: new Date().toISOString(),
   };
   const q = id
@@ -176,6 +205,25 @@ export async function savePackage(input: PackageInput, id?: string): Promise<voi
     : supabase.from("price_packages").insert(row);
   const { error } = await q;
   if (error) throw toError(error);
+}
+
+/** เปลี่ยนเครื่องของทั้งโปร (ทุกแพ็กเกจในกลุ่มเดียวกัน) */
+export async function setPackagesMachines(ids: string[], machineNumbers: number[]): Promise<void> {
+  const { error } = await supabase
+    .from("price_packages")
+    .update({
+      machine_numbers: [...machineNumbers].sort((a, b) => a - b),
+      updated_at: new Date().toISOString(),
+    })
+    .in("id", ids);
+  if (error) {
+    if (isPackagesMissing(error)) {
+      throw new Error(
+        "ฐานข้อมูลยังไม่รองรับการเลือกเครื่อง — รัน supabase/package_hourbank_migration.sql อีกครั้ง",
+      );
+    }
+    throw toError(error);
+  }
 }
 
 export async function setPackageActive(id: string, active: boolean): Promise<void> {
@@ -194,15 +242,31 @@ export async function deletePackage(id: string): Promise<void> {
 
 // ---------------- ชั่วโมงสะสม ----------------
 
-/** null = ยังไม่ได้รัน SQL */
-export async function getHourBank(memberId: string): Promise<HourBankBalance | null> {
-  const { data, error } = await supabase.rpc("hour_bank_balance", { p_member_id: memberId });
+/**
+ * null = ยังไม่ได้รัน SQL
+ * ใส่เลขเครื่อง = ยอดที่ใช้ได้ที่เครื่องนั้น (ชั่วโมงจากโปร GTA ใช้ได้เฉพาะเครื่องที่มีเกม GTA)
+ */
+export async function getHourBank(
+  memberId: string,
+  machineNumber?: number,
+): Promise<HourBankBalance | null> {
+  const { data, error } = await supabase.rpc(
+    "hour_bank_balance",
+    machineNumber === undefined
+      ? { p_member_id: memberId }
+      : { p_member_id: memberId, p_machine_number: machineNumber },
+  );
   if (error) {
     if (isPackagesMissing(error)) return null;
     throw toError(error);
   }
   const d = data as HourBankBalance;
-  return { minutes: Number(d.minutes) || 0, next_expiry: d.next_expiry, lots: d.lots ?? [] };
+  return {
+    minutes: Number(d.minutes) || 0,
+    next_expiry: d.next_expiry,
+    lots: d.lots ?? [],
+    total: d.total === undefined ? undefined : Number(d.total),
+  };
 }
 
 export async function listHourBankTx(memberId: string, limit = 50): Promise<HourBankTx[]> {
@@ -239,14 +303,30 @@ export interface RedeemResult {
   minutes: number;
   expires_at: string;
   balance: number;
+  /** เครื่องที่ชั่วโมงที่หักมาใช้ได้ (ว่าง = ทุกเครื่อง) — ติดไปกับบิล */
+  machines?: number[];
 }
 
-export async function redeemHourBank(memberId: string, minutes: number): Promise<RedeemResult> {
+/** หักชั่วโมงสะสมที่ใช้ได้ที่เครื่องนี้ (ฐานข้อมูลเลือกก้อนให้เอง) */
+export async function redeemHourBank(
+  memberId: string,
+  minutes: number,
+  machineNumber: number,
+): Promise<RedeemResult> {
   const { data, error } = await supabase.rpc("hour_bank_redeem", {
     p_member_id: memberId,
     p_minutes: Math.round(minutes),
+    p_machine_number: machineNumber,
   });
-  if (error) throw toError(error);
+  if (error) {
+    const code = (error as { code?: string }).code ?? "";
+    if (code === "PGRST202" || code === "42883") {
+      throw new Error(
+        "ฐานข้อมูลยังเป็นรุ่นเก่า — รัน supabase/package_hourbank_migration.sql อีกครั้ง แล้วลองใหม่",
+      );
+    }
+    throw toError(error);
+  }
   return data as RedeemResult;
 }
 

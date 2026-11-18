@@ -31,6 +31,7 @@ import {
   freeHourValue,
   isPackageBill,
   pointsHoursOf,
+  hasCustomExtension,
 } from "@/lib/billing";
 import { saveHourBank, hourBankToast, fmtMinutes } from "@/lib/packages";
 import { useShop } from "@/hooks/useShop";
@@ -118,7 +119,12 @@ export function ManageModal({
   const [extPay, setExtPay] = useState<PayMode>("cash");
   const [extCash, setExtCash] = useState<string>("");
   const [extTransfer, setExtTransfer] = useState<string>("");
-  const extPrice = calcPrice(machine.zone, extHrs, override);
+  // บิลแพ็กเกจ/ชั่วโมงสะสม: พนักงานกรอกค่าต่อเวลาเอง (ไม่ใช้ราคารายชั่วโมง/โปร 89)
+  const customExt = hasCustomExtension(reservation);
+  const [extCustom, setExtCustom] = useState<string>("");
+  const extPrice = customExt
+    ? Math.max(0, Number(extCustom) || 0)
+    : calcPrice(machine.zone, extHrs, override);
 
   // สมาชิก + แต้ม
   const [member, setMember] = useState<Member | null>(null);
@@ -261,6 +267,7 @@ export function ManageModal({
     foodPay,
     foodTransfer,
     extHrs,
+    extCustom,
     extPay,
     extTransfer,
     finalPay,
@@ -299,6 +306,10 @@ export function ManageModal({
   async function handleExtend(e?: React.FormEvent) {
     e?.preventDefault();
     if (busy) return;
+    if (customExt && (extCustom.trim() === "" || !Number.isFinite(Number(extCustom)))) {
+      alert("กรอกค่าต่อเวลา (บาท) ก่อน — บิลแพ็กเกจให้พนักงานกำหนดราคาเอง");
+      return;
+    }
     setBusy(true);
     try {
       let c = Number(extCash) || 0;
@@ -313,7 +324,7 @@ export function ManageModal({
         c = 0;
         t = 0;
       }
-      await extendTime(reservation, extHrs, c, t);
+      await extendTime(reservation, extHrs, c, t, customExt ? extPrice : undefined);
       await clearDisplay();
       onSuccess();
       onClose();
@@ -695,12 +706,36 @@ export function ManageModal({
                     >
                       {HOUR_OPTIONS.map((h) => (
                         <option key={h} value={h}>
-                          {h} ชม. ({Math.round(h * 60)} นาที) —{" "}
-                          {formatBaht(calcPrice(machine.zone, h, override))} บาท
+                          {h} ชม. ({Math.round(h * 60)} นาที)
+                          {customExt
+                            ? ""
+                            : ` — ${formatBaht(calcPrice(machine.zone, h, override))} บาท`}
                         </option>
                       ))}
                     </select>
-                    {promotion && (
+                    {customExt && (
+                      <div className="mb-2">
+                        <label className="small fw-bold" htmlFor="extCustomPrice">
+                          ค่าต่อเวลา (บาท) — พนักงานกำหนด
+                        </label>
+                        <input
+                          id="extCustomPrice"
+                          type="number"
+                          min={0}
+                          inputMode="numeric"
+                          className="form-control"
+                          placeholder="เช่น 60"
+                          value={extCustom}
+                          onChange={(e) => setExtCustom(e.target.value)}
+                          required
+                        />
+                        <div className="small text-muted mt-1">
+                          บิลแพ็กเกจ {reservation.package_name ?? ""} —
+                          ยอดนี้บวกเข้าค่าเครื่องตอนเช็คบิล
+                        </div>
+                      </div>
+                    )}
+                    {!customExt && promotion && (
                       <div className="small text-success mb-2">
                         <Tag size={12} /> ใช้โปร: <b>{promotion.name}</b>
                       </div>

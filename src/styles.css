@@ -6143,3 +6143,70 @@ h6 svg {
 .form-control[type="file"]:hover:not(:disabled)::file-selector-button {
   background: rgba(255, 255, 255, 0.16);
 }
+
+/* ---------- เลือกเครื่องของโปรแพ็กเกจ ---------- */
+.yl-mpick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.yl-mpick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--g-border);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--g-text-muted);
+  font-weight: 600;
+  font-size: 0.86rem;
+}
+.yl-mpick-btn:hover {
+  color: var(--g-text);
+}
+.yl-mpick-btn.is-on {
+  background: var(--dm-hot);
+  color: var(--dm-hot-ink);
+  border-color: transparent;
+}
+.yl-mpick-btn:focus-visible {
+  outline: 2px solid var(--dm-play);
+  outline-offset: 2px;
+}
+.yl-pkg-machines {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--g-text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--g-border);
+}
+.yl-pkg-medit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--g-border);
+}
+.dm-gta {
+  align-self: center;
+  max-width: 100%;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #fde68a;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

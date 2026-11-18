@@ -38,6 +38,8 @@ interface Props {
   machine: Machine;
   reservation?: Reservation;
   priceOverride?: PriceOverride | null;
+  /** เครื่องนี้อยู่ในโปรแพ็กเกจไหน (เช่น "GTA VI มาใหม่") — ป้ายบอกพนักงานตอนเครื่องว่าง */
+  gameTag?: string;
   /** เวลาปัจจุบันจากแดชบอร์ด (เดินทุกวินาที) — การ์ดทุกใบใช้นาฬิกาเดียวกัน */
   now: number;
   onStart: (m: Machine) => void;
@@ -51,6 +53,7 @@ export function MachineCard({
   machine,
   reservation,
   priceOverride,
+  gameTag,
   now,
   onStart,
   onManage,
@@ -78,6 +81,11 @@ export function MachineCard({
         <div className="dm-empty">
           <ZoneIcon size={30} aria-hidden />
           <span>พร้อมให้บริการ</span>
+          {gameTag && (
+            <span className="dm-gta" title={`เครื่องนี้มีแพ็กเกจ ${gameTag}`}>
+              🎮 {gameTag}
+            </span>
+          )}
         </div>
         <div className="dm-actions">
           <button type="button" className="dm-primary is-sea" onClick={() => onStart(machine)}>

@@ -7,7 +7,7 @@ import { PcZonePanel, pcStatusOf } from "./PcZonePanel";
 import { ShopBar } from "./ShopDrawer";
 import { usePcZone } from "@/hooks/usePcZone";
 import { isAgentOnline } from "@/lib/pcControl";
-import { listOpenPackages, fmtThaiDate, type PricePackage } from "@/lib/packages";
+import { listOpenPackages, fmtThaiDate, fmtMachines, type PricePackage } from "@/lib/packages";
 import {
   countStatuses,
   isPlaying,
@@ -139,6 +139,17 @@ export function Dashboard({
     return [...map.entries()];
   }, [packages]);
 
+  // เครื่องโซฟาไหนอยู่ในโปรอะไร (เช่น เครื่องที่มีเกม GTA) — ติดป้ายบนการ์ดให้พนักงานรู้
+  const gameTagOf = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const [name, list] of promoGroups) {
+      for (const n of list[0].machine_numbers ?? []) {
+        map.set(n, map.has(n) ? `${map.get(n)}, ${name}` : name);
+      }
+    }
+    return map;
+  }, [promoGroups]);
+
   function zoneSection(
     key: "sofa" | "racing",
     title: string,
@@ -171,6 +182,7 @@ export function Dashboard({
                 machine={m}
                 reservation={resByMachine.get(m.id)}
                 priceOverride={override}
+                gameTag={key === "sofa" ? gameTagOf.get(m.machine_number) : undefined}
                 now={now}
                 onStart={onStart}
                 onManage={onManage}
@@ -207,7 +219,9 @@ export function Dashboard({
             ))}
           </span>
           <span className="dm-promo-when">
-            เฉพาะโซนโซฟา
+            {Array.isArray(list[0].machine_numbers)
+              ? `เฉพาะโซฟาเครื่อง ${fmtMachines(list[0].machine_numbers)}`
+              : "เฉพาะโซนโซฟา"}
             {list[0].end_date ? ` · ถึง ${fmtThaiDate(list[0].end_date)}` : ""}
           </span>
         </section>
