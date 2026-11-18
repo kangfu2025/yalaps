@@ -247,6 +247,14 @@ export function DisplayScreen() {
     (payload.kind === "start" && !!payload.member) ||
     (payload.kind === "member_card" && !!payload.member);
 
+  // อันดับโหลดเสร็จก่อนรูปโปร = ช่วงแรกเข้าโหมด "อันดับอย่างเดียว" ชั่วคราว
+  // พอรูปโปรมาถึงให้กลับไปเริ่มที่โปรโมชั่นทันที (ไม่ค้างอยู่ที่อันดับ 1 นาทีแรก)
+  const hadPromos = useRef(hasPromos);
+  useEffect(() => {
+    if (hasPromos && !hadPromos.current) setSegment({ kind: "promo" });
+    hadPromos.current = hasPromos;
+  }, [hasPromos]);
+
   useEffect(() => {
     if (interrupting) return;
     const n = rankPeriods.length;

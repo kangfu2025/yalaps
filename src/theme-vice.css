@@ -542,7 +542,7 @@ html[data-theme="vice"] .display-portrait::before {
     linear-gradient(#000 0 50%, transparent 50%) intersect,
     repeating-linear-gradient(180deg, #000 0 5%, transparent 5% 6.5%);
   pointer-events: none;
-  z-index: 0;
+  z-index: -1; /* อยู่หลังเนื้อหาทุกอย่างในจอ (โปสเตอร์/QR/สมาชิก) */
 }
 /* แสงสะท้อนบนน้ำ */
 html[data-theme="vice"] .display-portrait::after {
@@ -560,7 +560,7 @@ html[data-theme="vice"] .display-portrait::after {
   -webkit-mask: radial-gradient(40% 60% at 50% 0%, #000, transparent);
   mask: radial-gradient(40% 60% at 50% 0%, #000, transparent);
   pointer-events: none;
-  z-index: 0;
+  z-index: -1; /* อยู่หลังเนื้อหาทุกอย่างในจอ (โปสเตอร์/QR/สมาชิก) */
 }
 html[data-theme="vice"] .display-pay > *,
 html[data-theme="vice"] .display-promo-empty {
@@ -763,4 +763,13 @@ html[data-theme="vice"] .yl-rk-screen,
 html[data-theme="vice"] .display-fade {
   position: relative;
   z-index: 1;
+}
+/* จอลูกค้าเป็นชั้นของตัวเอง: พระอาทิตย์/แสงน้ำ (z-index -1) จึงอยู่หลังเนื้อหา แต่หน้าพื้นจอ */
+html[data-theme="vice"] .display-portrait {
+  isolation: isolate;
+}
+/* รูป/วิดีโอโปสเตอร์เต็มจอ: ไม่ต้องมีฉากประกอบ ให้เห็นโปสเตอร์ชัด ๆ */
+html[data-theme="vice"] .display-idle.has-media::before,
+html[data-theme="vice"] .display-idle.has-media::after {
+  display: none;
 }
